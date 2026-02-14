@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import { useAppContext } from '../context/AppContext';
 
 interface NavbarProps {
   clubName: string;
@@ -14,13 +15,23 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLogout,
   currentTime,
 }) => {
-  const tabs: { id: string; label: string; path: string }[] = [
-    { id: 'counter', label: 'Tables', path: '/' },
-    { id: 'ps4', label: 'PS4', path: '/ps4' },
-    { id: 'bar', label: 'Bar', path: '/bar' },
-    { id: 'analytics', label: 'Stats', path: '/analytics' },
-    { id: 'admin', label: 'Admin', path: '/admin' },
+  const { user } = useAppContext();
+  
+  // Build tabs based on user permissions
+  const allTabs: { id: string; label: string; path: string; permission?: string }[] = [
+    { id: 'counter', label: 'Tables', path: '/', permission: 'can_manage_billiard' },
+    { id: 'ps4', label: 'PS4', path: '/ps4', permission: 'can_manage_ps4' },
+    { id: 'bar', label: 'Bar', path: '/bar', permission: 'can_manage_bar' },
+    { id: 'analytics', label: 'Stats', path: '/analytics', permission: 'can_view_analytics' },
+    { id: 'admin', label: 'Admin', path: '/admin', permission: 'can_manage_settings' },
   ];
+  
+  // Filter tabs based on user permissions (admin sees all)
+  const tabs = allTabs.filter(tab => {
+    if (user?.role === 'admin') return true;
+    if (!tab.permission) return true;
+    return user?.[tab.permission as keyof typeof user] === true;
+  });
 
   return (
     <nav className="sticky top-0 z-[60] bg-black/80 backdrop-blur-2xl border-b border-white/5 px-8 py-4 flex items-center justify-between">

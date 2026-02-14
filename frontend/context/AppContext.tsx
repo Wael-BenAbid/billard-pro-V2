@@ -82,6 +82,14 @@ interface AppSettings {
 interface User {
   username: string;
   role: string;
+  can_manage_billiard?: boolean;
+  can_manage_ps4?: boolean;
+  can_manage_bar?: boolean;
+  can_view_analytics?: boolean;
+  can_view_agenda?: boolean;
+  can_manage_clients?: boolean;
+  can_manage_settings?: boolean;
+  can_manage_users?: boolean;
 }
 
 interface Stats {

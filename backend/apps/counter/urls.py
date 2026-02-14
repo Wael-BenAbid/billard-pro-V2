@@ -3,11 +3,11 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     AppSettingsViewSet, BilliardTableViewSet, BilliardSessionViewSet,
     PS4GameViewSet, PS4TimeOptionViewSet, PS4SessionViewSet, InventoryItemViewSet,
-    BarOrderViewSet, StatsViewSet,
-    login_view, create_admin_view,
+    BarOrderViewSet, StatsViewSet, ClientViewSet, UserViewSet,
+    login_view, create_admin_view, verify_admin_password_view,
     clients_list, client_history,
     toggle_client_payment, pay_all_client, delete_paid_client,
-    daily_revenue, monthly_revenue
+    daily_revenue, monthly_revenue, get_current_user
 )
 
 router = DefaultRouter()
@@ -20,11 +20,15 @@ router.register(r'ps4-sessions', PS4SessionViewSet, basename='ps4-session')
 router.register(r'inventory', InventoryItemViewSet, basename='inventory-item')
 router.register(r'bar-orders', BarOrderViewSet, basename='bar-order')
 router.register(r'stats', StatsViewSet, basename='stats')
+router.register(r'registered-clients', ClientViewSet, basename='registered-client')
+router.register(r'users', UserViewSet, basename='user')
 
 urlpatterns = [
     # Authentication endpoints
     path('auth/login/', login_view, name='login'),
     path('auth/create-admin/', create_admin_view, name='create-admin'),
+    path('auth/verify-admin-password/', verify_admin_password_view, name='verify-admin-password'),
+    path('auth/me/', get_current_user, name='current-user'),
     
     # Client management endpoints
     path('clients/', clients_list, name='clients-list'),

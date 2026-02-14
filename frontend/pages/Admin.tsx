@@ -50,6 +50,31 @@ interface PS4Game {
   is_active: boolean;
 }
 
+interface RegisteredClient {
+  id: number;
+  name: string;
+  phone: string;
+  email: string;
+  notes: string;
+  created_at: string;
+  is_active: boolean;
+}
+
+interface UserProfile {
+  id: number;
+  username: string;
+  email: string;
+  role: string;
+  can_manage_billiard: boolean;
+  can_manage_ps4: boolean;
+  can_manage_bar: boolean;
+  can_view_analytics: boolean;
+  can_view_agenda: boolean;
+  can_manage_clients: boolean;
+  can_manage_settings: boolean;
+  can_manage_users: boolean;
+}
+
 const API_URL = 'http://localhost:8000/api';
 
 export const Admin: React.FC = () => {
@@ -61,11 +86,15 @@ export const Admin: React.FC = () => {
     refreshData,
   } = useAppContext();
   
-  const [activeTab, setActiveTab] = useState<'general' | 'clients' | 'bar' | 'ps4'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'clients' | 'bar' | 'ps4' | 'users'>('general');
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState<ClientHistory | null>(null);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Pending settings for General tab
+  const [pendingSettings, setPendingSettings] = useState<Partial<typeof settings>>({});
+  const [settingsHasChanges, setSettingsHasChanges] = useState(false);
   
   // PS4 Management State
   const [ps4Games, setPs4Games] = useState<PS4Game[]>([]);
@@ -82,15 +111,34 @@ export const Admin: React.FC = () => {
   const [isAddingBarItem, setIsAddingBarItem] = useState(false);
   const [newBarItem, setNewBarItem] = useState({ name: '', price: 0, icon: '🍹' });
 
+  // Registered Clients State
+  const [registeredClients, setRegisteredClients] = useState<RegisteredClient[]>([]);
+  const [isAddingClient, setIsAddingClient] = useState(false);
+  const [newRegisteredClient, setNewRegisteredClient] = useState({ name: '', phone: '', email: '', notes: '' });
+
+  // Users Management State
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [isAddingUser, setIsAddingUser] = useState(false);
+  const [newUser, setNewUser] = useState({ username: '', password: '', email: '', role: 'user' });
+  const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
+  
+  // Pending user permissions for Users tab
+  const [pendingUserPermissions, setPendingUserPermissions] = useState<Record<number, Partial<UserProfile>>>({});
+  const [usersHasChanges, setUsersHasChanges] = useState(false);
+
   useEffect(() => {
     if (activeTab === 'clients') {
       fetchClients();
+      fetchRegisteredClients();
     }
     if (activeTab === 'ps4') {
       fetchPS4Games();
     }
     if (activeTab === 'bar') {
       fetchBarItems();
+    }
+    if (activeTab === 'users') {
+      fetchUsers();
     }
   }, [activeTab]);
 
@@ -118,6 +166,188 @@ export const Admin: React.FC = () => {
       console.error('Error fetching clients:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchRegisteredClients = async () => {
+    try {
+      const res = await fetch(`${API_URL}/registered-clients/`);
+      if (res.ok) {
+        const data = await res.json();
+        setRegisteredClients(data);
+      }
+    } catch (error) {
+      console.error('Error fetching registered clients:', error);
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const res = await fetch(`${API_URL}/users/`);
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data);
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
+  };
+
+  const addRegisteredClient = async () => {
+    if (!newRegisteredClient.name.trim()) {
+      Swal.fire({
+        title: 'Erreur',
+        text: 'Le nom du client est requis',
+        icon: 'error',
+        background: '#09090b',
+        color: '#fff',
+      });
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/registered-clients/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newRegisteredClient),
+      });
+      if (res.ok) {
+        await fetchRegisteredClients();
+        setIsAddingClient(false);
+        setNewRegisteredClient({ name: '', phone: '', email: '', notes: '' });
+        Swal.fire({
+          title: 'Succès',
+          text: 'Client ajouté',
+          icon: 'success',
+          timer: 1500,
+          background: '#09090b',
+          color: '#fff',
+        });
+      } else {
+        const error = await res.json();
+        Swal.fire({
+          title: 'Erreur',
+          text: error.name || 'Erreur lors de l\'ajout',
+          icon: 'error',
+          background: '#09090b',
+          color: '#fff',
+        });
+      }
+    } catch (error) {
+      console.error('Error adding client:', error);
+    }
+  };
+
+  const addUser = async () => {
+    if (!newUser.username.trim() || !newUser.password.trim()) {
+      Swal.fire({
+        title: 'Erreur',
+        text: 'Le nom d\'utilisateur et le mot de passe sont requis',
+        icon: 'error',
+        background: '#09090b',
+        color: '#fff',
+      });
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/users/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newUser),
+      });
+      if (res.ok) {
+        await fetchUsers();
+        setIsAddingUser(false);
+        setNewUser({ username: '', password: '', email: '', role: 'user' });
+        Swal.fire({
+          title: 'Succès',
+          text: 'Utilisateur ajouté',
+          icon: 'success',
+          timer: 1500,
+          background: '#09090b',
+          color: '#fff',
+        });
+      } else {
+        const error = await res.json();
+        Swal.fire({
+          title: 'Erreur',
+          text: error.error || 'Erreur lors de l\'ajout',
+          icon: 'error',
+          background: '#09090b',
+          color: '#fff',
+        });
+      }
+    } catch (error) {
+      console.error('Error adding user:', error);
+    }
+  };
+
+  const updateUserPermissions = async (userId: number, permissions: Partial<UserProfile>) => {
+    try {
+      const res = await fetch(`${API_URL}/users/${userId}/update_permissions/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(permissions),
+      });
+      if (res.ok) {
+        await fetchUsers();
+        Swal.fire({
+          title: 'Succès',
+          text: 'Permissions mises à jour',
+          icon: 'success',
+          timer: 1500,
+          background: '#09090b',
+          color: '#fff',
+        });
+      }
+    } catch (error) {
+      console.error('Error updating permissions:', error);
+    }
+  };
+
+  const deleteUser = async (userId: number, username: string) => {
+    const result = await Swal.fire({
+      title: 'Supprimer l\'utilisateur ?',
+      text: `Voulez-vous vraiment supprimer "${username}" ?`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Supprimer',
+      cancelButtonText: 'Annuler',
+      background: '#09090b',
+      color: '#fff',
+    });
+
+    if (result.isConfirmed) {
+      try {
+        const res = await fetch(`${API_URL}/users/${userId}/`, {
+          method: 'DELETE',
+        });
+        if (res.ok) {
+          await fetchUsers();
+          Swal.fire({
+            title: 'Supprimé',
+            text: 'Utilisateur supprimé',
+            icon: 'success',
+            timer: 1500,
+            background: '#09090b',
+            color: '#fff',
+          });
+        } else {
+          const error = await res.json();
+          Swal.fire({
+            title: 'Erreur',
+            text: error.error || 'Erreur lors de la suppression',
+            icon: 'error',
+            background: '#09090b',
+            color: '#fff',
+          });
+        }
+      } catch (error) {
+        console.error('Error deleting user:', error);
+      }
     }
   };
 
@@ -236,12 +466,122 @@ export const Admin: React.FC = () => {
   };
 
   const handleUpdateSetting = <K extends keyof typeof settings>(key: K, value: typeof settings[K]) => {
-    updateSettings({ [key]: value });
+    setPendingSettings(prev => ({ ...prev, [key]: value }));
+    setSettingsHasChanges(true);
+  };
+
+  const saveSettings = async () => {
+    try {
+      const res = await fetch(`${API_URL}/settings/1/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pendingSettings),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        updateSettings(data);
+        setPendingSettings({});
+        setSettingsHasChanges(false);
+        Swal.fire({
+          title: 'Succès',
+          text: 'Paramètres enregistrés',
+          icon: 'success',
+          timer: 2000,
+          background: '#09090b',
+          color: '#fff',
+        });
+      }
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      Swal.fire({
+        title: 'Erreur',
+        text: 'Erreur lors de l\'enregistrement',
+        icon: 'error',
+        background: '#09090b',
+        color: '#fff',
+      });
+    }
+  };
+
+  // Helper to get merged user data for display
+  const getDisplayUser = (user: UserProfile) => ({
+    ...user,
+    role: user.role || 'user',
+    can_manage_billiard: user.can_manage_billiard ?? false,
+    can_manage_ps4: user.can_manage_ps4 ?? false,
+    can_manage_bar: user.can_manage_bar ?? false,
+    can_view_analytics: user.can_view_analytics ?? false,
+    can_view_agenda: user.can_view_agenda ?? false,
+    can_manage_clients: user.can_manage_clients ?? false,
+    can_manage_settings: user.can_manage_settings ?? false,
+    can_manage_users: user.can_manage_users ?? false,
+    ...(pendingUserPermissions[user.id] || {}),
+  });
+
+  // Handle permission change - update pending state
+  const handlePermissionChange = (userId: number, permission: keyof UserProfile, value: any) => {
+    setPendingUserPermissions(prev => ({
+      ...prev,
+      [userId]: {
+        ...(prev[userId] || {}),
+        [permission]: value,
+      },
+    }));
+    setUsersHasChanges(true);
+  };
+
+  // Save all pending user permissions
+  const saveUserPermissions = async () => {
+    const userIds = Object.keys(pendingUserPermissions);
+    if (userIds.length === 0) return;
+
+    try {
+      // Save each user's pending permissions
+      for (const userId of userIds) {
+        const permissions = pendingUserPermissions[parseInt(userId)];
+        if (Object.keys(permissions).length > 0) {
+          const res = await fetch(`${API_URL}/users/${userId}/update_permissions/`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(permissions),
+          });
+          if (!res.ok) {
+            throw new Error('Failed to update permissions');
+          }
+        }
+      }
+
+      // Clear pending changes and refresh users
+      setPendingUserPermissions({});
+      setUsersHasChanges(false);
+      await fetchUsers();
+
+      Swal.fire({
+        title: 'Succès',
+        text: 'Permissions enregistrées',
+        icon: 'success',
+        timer: 2000,
+        background: '#09090b',
+        color: '#fff',
+      });
+    } catch (error) {
+      console.error('Error saving user permissions:', error);
+      Swal.fire({
+        title: 'Erreur',
+        text: 'Erreur lors de l\'enregistrement des permissions',
+        icon: 'error',
+        background: '#09090b',
+        color: '#fff',
+      });
+    }
   };
 
   const filteredClients = clients.filter(c => 
     c.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Get merged settings for display (pending + actual)
+  const displaySettings = { ...settings, ...pendingSettings };
 
   // Bar Item Management Functions
   const fetchBarItems = async () => {
@@ -579,10 +919,11 @@ export const Admin: React.FC = () => {
           { id: 'clients', label: 'Clients' },
           { id: 'bar', label: 'Bar' },
           { id: 'ps4', label: 'PS4' },
+          { id: 'users', label: 'Utilisateurs' },
         ].map(tab => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as 'general' | 'clients' | 'bar' | 'ps4')}
+            onClick={() => setActiveTab(tab.id as 'general' | 'clients' | 'bar' | 'ps4' | 'users')}
             className={`flex-1 py-4 rounded-xl text-[10px] font-black uppercase transition-all ${
               activeTab === tab.id
                 ? 'bg-zinc-800 text-white shadow-xl'
@@ -605,7 +946,7 @@ export const Admin: React.FC = () => {
               </label>
               <input
                 type="text"
-                value={settings.club_name}
+                value={displaySettings.club_name}
                 onChange={e => handleUpdateSetting('club_name', e.target.value)}
                 className="w-full bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold mt-2"
               />
@@ -617,13 +958,13 @@ export const Admin: React.FC = () => {
               <div className="flex gap-4 mt-2">
                 <input
                   type="color"
-                  value={settings.theme_color}
+                  value={displaySettings.theme_color}
                   onChange={e => handleUpdateSetting('theme_color', e.target.value)}
                   className="w-14 h-14 rounded-2xl border-none cursor-pointer"
                 />
                 <input
                   type="text"
-                  value={settings.theme_color}
+                  value={displaySettings.theme_color}
                   onChange={e => handleUpdateSetting('theme_color', e.target.value)}
                   className="flex-1 bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold"
                 />
@@ -636,13 +977,13 @@ export const Admin: React.FC = () => {
               <div className="flex gap-4 mt-2">
                 <input
                   type="color"
-                  value={settings.table_a_color}
+                  value={displaySettings.table_a_color}
                   onChange={e => handleUpdateSetting('table_a_color', e.target.value)}
                   className="w-14 h-14 rounded-2xl border-none cursor-pointer"
                 />
                 <input
                   type="text"
-                  value={settings.table_a_color}
+                  value={displaySettings.table_a_color}
                   onChange={e => handleUpdateSetting('table_a_color', e.target.value)}
                   className="flex-1 bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold"
                 />
@@ -655,13 +996,13 @@ export const Admin: React.FC = () => {
               <div className="flex gap-4 mt-2">
                 <input
                   type="color"
-                  value={settings.table_b_color}
+                  value={displaySettings.table_b_color}
                   onChange={e => handleUpdateSetting('table_b_color', e.target.value)}
                   className="w-14 h-14 rounded-2xl border-none cursor-pointer"
                 />
                 <input
                   type="text"
-                  value={settings.table_b_color}
+                  value={displaySettings.table_b_color}
                   onChange={e => handleUpdateSetting('table_b_color', e.target.value)}
                   className="flex-1 bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold"
                 />
@@ -673,7 +1014,7 @@ export const Admin: React.FC = () => {
               </label>
               <input
                 type="number"
-                value={settings.rate_base}
+                value={displaySettings.rate_base}
                 onChange={e => handleUpdateSetting('rate_base', parseInt(e.target.value))}
                 className="w-full bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold mt-2"
               />
@@ -684,7 +1025,7 @@ export const Admin: React.FC = () => {
               </label>
               <input
                 type="number"
-                value={settings.rate_reduced}
+                value={displaySettings.rate_reduced}
                 onChange={e => handleUpdateSetting('rate_reduced', parseInt(e.target.value))}
                 className="w-full bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold mt-2"
               />
@@ -696,7 +1037,7 @@ export const Admin: React.FC = () => {
               <p className="text-[10px] text-zinc-500 mt-1">Durée avant d'appliquer le tarif réduit</p>
               <input
                 type="number"
-                value={settings.threshold_mins}
+                value={displaySettings.threshold_mins}
                 onChange={e => handleUpdateSetting('threshold_mins', parseInt(e.target.value))}
                 className="w-full bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold mt-2"
               />
@@ -708,7 +1049,7 @@ export const Admin: React.FC = () => {
               <p className="text-[10px] text-zinc-500 mt-1">Prix minimum pour les sessions courtes</p>
               <input
                 type="number"
-                value={settings.floor_min}
+                value={displaySettings.floor_min}
                 onChange={e => handleUpdateSetting('floor_min', parseInt(e.target.value))}
                 className="w-full bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold mt-2"
               />
@@ -720,7 +1061,7 @@ export const Admin: React.FC = () => {
               <p className="text-[10px] text-zinc-500 mt-1">Prix minimum pour les sessions longues</p>
               <input
                 type="number"
-                value={settings.floor_mid}
+                value={displaySettings.floor_mid}
                 onChange={e => handleUpdateSetting('floor_mid', parseInt(e.target.value))}
                 className="w-full bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold mt-2"
               />
@@ -733,25 +1074,40 @@ export const Admin: React.FC = () => {
             <div className="text-sm text-zinc-400 space-y-3">
               <div className="bg-zinc-800/50 rounded-xl p-4">
                 <p className="text-yellow-500 font-bold mb-2">📊 Tarification :</p>
-                <p>• De 0 à {settings.threshold_mins} min : <span className="text-white font-bold">{settings.rate_base} mil/min</span></p>
-                <p>• Après {settings.threshold_mins} min : <span className="text-white font-bold">{settings.rate_reduced} mil/min</span> (pour les minutes supplémentaires)</p>
+                <p>• De 0 à {displaySettings.threshold_mins} min : <span className="text-white font-bold">{displaySettings.rate_base} mil/min</span></p>
+                <p>• Après {displaySettings.threshold_mins} min : <span className="text-white font-bold">{displaySettings.rate_reduced} mil/min</span> (pour les minutes supplémentaires)</p>
               </div>
               
               <div className="bg-zinc-800/50 rounded-xl p-4">
                 <p className="text-emerald-500 font-bold mb-2">💰 Conditions de plancher :</p>
-                <p>• Si prix &lt; {settings.floor_min} mil → <span className="text-white font-bold">{settings.floor_min} mil ({settings.floor_min / 1000} DT)</span></p>
-                <p>• Si {settings.floor_min} mil &lt; prix &lt; {settings.floor_mid} mil → <span className="text-white font-bold">{settings.floor_mid} mil ({settings.floor_mid / 1000} DT)</span></p>
-                <p>• Si prix ≥ {settings.floor_mid} mil → <span className="text-white font-bold">prix calculé</span></p>
+                <p>• Si prix &lt; {displaySettings.floor_min} mil → <span className="text-white font-bold">{displaySettings.floor_min} mil ({displaySettings.floor_min / 1000} DT)</span></p>
+                <p>• Si {displaySettings.floor_min} mil &lt; prix &lt; {displaySettings.floor_mid} mil → <span className="text-white font-bold">{displaySettings.floor_mid} mil ({displaySettings.floor_mid / 1000} DT)</span></p>
+                <p>• Si prix ≥ {displaySettings.floor_mid} mil → <span className="text-white font-bold">prix calculé</span></p>
               </div>
 
               <div className="bg-zinc-800/50 rounded-xl p-4">
                 <p className="text-blue-500 font-bold mb-2">📝 Exemples :</p>
-                <p>• 5 min = 5 × {settings.rate_base} = {5 * settings.rate_base} mil → <span className="text-white font-bold">{settings.floor_min} mil (plancher)</span></p>
-                <p>• 10 min = 10 × {settings.rate_base} = {10 * settings.rate_base} mil → <span className="text-white font-bold">{settings.floor_mid} mil (plancher)</span></p>
-                <p>• 20 min = ({settings.threshold_mins} × {settings.rate_base}) + (5 × {settings.rate_reduced}) = {settings.threshold_mins * settings.rate_base + 5 * settings.rate_reduced} mil</p>
+                <p>• 5 min = 5 × {displaySettings.rate_base} = {5 * displaySettings.rate_base} mil → <span className="text-white font-bold">{displaySettings.floor_min} mil (plancher)</span></p>
+                <p>• 10 min = 10 × {displaySettings.rate_base} = {10 * displaySettings.rate_base} mil → <span className="text-white font-bold">{displaySettings.floor_mid} mil (plancher)</span></p>
+                <p>• 20 min = ({displaySettings.threshold_mins} × {displaySettings.rate_base}) + (5 × {displaySettings.rate_reduced}) = {displaySettings.threshold_mins * displaySettings.rate_base + 5 * displaySettings.rate_reduced} mil</p>
               </div>
             </div>
           </div>
+
+          {/* Save Button */}
+          {settingsHasChanges && (
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={saveSettings}
+                className="px-8 py-4 bg-green-500 hover:bg-green-400 text-black rounded-2xl font-black uppercase tracking-wider flex items-center gap-2 transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                Enregistrer
+              </button>
+            </div>
+          )}
         </section>
       )}
 
@@ -1554,6 +1910,308 @@ export const Admin: React.FC = () => {
           )}
         </div>
       )}
+
+      {/* Users Management */}
+      {activeTab === 'users' && (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h2 className="text-4xl font-black italic text-white">Gestion des Utilisateurs</h2>
+            <button
+              onClick={() => setIsAddingUser(true)}
+              style={{ backgroundColor: settings.theme_color || '#eab308' }}
+              className="px-6 py-3 text-black rounded-xl font-black text-sm uppercase"
+            >
+              + Ajouter un utilisateur
+            </button>
+          </div>
+
+          {/* Add User Modal */}
+          {isAddingUser && (
+            <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+              <div className="bg-zinc-900 rounded-[3rem] border border-white/10 p-8 w-full max-w-md">
+                <h3 className="text-2xl font-black text-white mb-6">Nouvel Utilisateur</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">
+                      Nom d'utilisateur *
+                    </label>
+                    <input
+                      type="text"
+                      value={newUser.username}
+                      onChange={e => setNewUser({ ...newUser, username: e.target.value })}
+                      className="w-full bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold mt-2"
+                      placeholder="username"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">
+                      Mot de passe *
+                    </label>
+                    <input
+                      type="password"
+                      value={newUser.password}
+                      onChange={e => setNewUser({ ...newUser, password: e.target.value })}
+                      className="w-full bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold mt-2"
+                      placeholder="••••••••"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={newUser.email}
+                      onChange={e => setNewUser({ ...newUser, email: e.target.value })}
+                      className="w-full bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold mt-2"
+                      placeholder="email@example.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">
+                      Rôle
+                    </label>
+                    <select
+                      value={newUser.role}
+                      onChange={e => setNewUser({ ...newUser, role: e.target.value })}
+                      className="w-full bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold mt-2"
+                    >
+                      <option value="admin">Administrateur</option>
+                      <option value="manager">Gestionnaire</option>
+                      <option value="cashier">Caissier</option>
+                      <option value="viewer">Observateur</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex gap-4 mt-8">
+                  <button
+                    onClick={() => {
+                      setIsAddingUser(false);
+                      setNewUser({ username: '', password: '', email: '', role: 'user' });
+                    }}
+                    className="flex-1 py-4 bg-zinc-800 text-white rounded-xl font-bold"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={addUser}
+                    style={{ backgroundColor: settings.theme_color || '#eab308' }}
+                    className="flex-1 py-4 text-black rounded-xl font-black"
+                  >
+                    Créer
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Users List */}
+          <div className="bg-zinc-900/30 rounded-[3rem] border border-white/5 overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-white/10">
+                  <th className="text-left p-4 text-[10px] font-black text-zinc-600 uppercase tracking-widest">Utilisateur</th>
+                  <th className="text-left p-4 text-[10px] font-black text-zinc-600 uppercase tracking-widest">Rôle</th>
+                  <th className="text-left p-4 text-[10px] font-black text-zinc-600 uppercase tracking-widest">Permissions</th>
+                  <th className="text-right p-4 text-[10px] font-black text-zinc-600 uppercase tracking-widest">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map(user => {
+                  const displayUser = getDisplayUser(user);
+                  return (
+                    <tr key={user.id} className="border-b border-white/5 hover:bg-white/5">
+                      <td className="p-4">
+                        <div className="text-white font-bold">{user.username}</div>
+                        <div className="text-zinc-500 text-sm">{user.email || '-'}</div>
+                      </td>
+                      <td className="p-4">
+                        <select
+                          value={displayUser.role || 'user'}
+                          onChange={e => handlePermissionChange(user.id, 'role', e.target.value)}
+                          className="bg-zinc-800 border border-white/10 rounded-xl px-4 py-2 text-white text-sm"
+                        >
+                          <option value="admin">Administrateur</option>
+                          <option value="user">Utilisateur</option>
+                        </select>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex flex-wrap gap-2">
+                          <label className="flex items-center gap-1 text-xs">
+                            <input
+                              type="checkbox"
+                              checked={displayUser.can_manage_billiard}
+                              onChange={e => handlePermissionChange(user.id, 'can_manage_billiard', e.target.checked)}
+                              className="rounded"
+                            />
+                            Billard
+                          </label>
+                          <label className="flex items-center gap-1 text-xs">
+                            <input
+                              type="checkbox"
+                              checked={displayUser.can_manage_ps4}
+                              onChange={e => handlePermissionChange(user.id, 'can_manage_ps4', e.target.checked)}
+                              className="rounded"
+                            />
+                            PS4
+                          </label>
+                          <label className="flex items-center gap-1 text-xs">
+                            <input
+                              type="checkbox"
+                              checked={displayUser.can_manage_bar}
+                              onChange={e => handlePermissionChange(user.id, 'can_manage_bar', e.target.checked)}
+                              className="rounded"
+                            />
+                            Bar
+                          </label>
+                          <label className="flex items-center gap-1 text-xs">
+                            <input
+                              type="checkbox"
+                              checked={displayUser.can_view_analytics}
+                              onChange={e => handlePermissionChange(user.id, 'can_view_analytics', e.target.checked)}
+                              className="rounded"
+                            />
+                            Stats
+                          </label>
+                          <label className="flex items-center gap-1 text-xs">
+                            <input
+                              type="checkbox"
+                              checked={displayUser.can_manage_settings}
+                              onChange={e => handlePermissionChange(user.id, 'can_manage_settings', e.target.checked)}
+                              className="rounded"
+                            />
+                            Paramètres
+                          </label>
+                        </div>
+                      </td>
+                      <td className="p-4 text-right">
+                      <button
+                        onClick={() => deleteUser(user.id, user.username)}
+                        className="text-red-400 hover:text-red-300 text-sm"
+                      >
+                        🗑️ Supprimer
+                      </button>
+                    </td>
+                  </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {users.length === 0 && (
+              <div className="p-10 text-center text-zinc-500">
+                Aucun utilisateur configuré
+              </div>
+            )}
+
+            {/* Save Button for Users */}
+            {usersHasChanges && (
+              <div className="p-6 flex justify-end">
+                <button
+                  onClick={saveUserPermissions}
+                  className="px-8 py-4 bg-green-500 hover:bg-green-400 text-black rounded-2xl font-black uppercase tracking-wider flex items-center gap-2 transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  Enregistrer
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Add Client Button in Clients Tab */}
+      {activeTab === 'clients' && (
+        <div className="mb-4">
+          <button
+            onClick={() => setIsAddingClient(true)}
+            style={{ backgroundColor: settings.theme_color || '#eab308' }}
+            className="px-6 py-3 text-black rounded-xl font-black text-sm uppercase"
+          >
+            + Ajouter un client
+          </button>
+        </div>
+      )}
+
+      {/* Add Client Modal */}
+      {isAddingClient && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-900 rounded-[3rem] border border-white/10 p-8 w-full max-w-md">
+            <h3 className="text-2xl font-black text-white mb-6">Nouveau Client</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">
+                  Nom *
+                </label>
+                <input
+                  type="text"
+                  value={newRegisteredClient.name}
+                  onChange={e => setNewRegisteredClient({ ...newRegisteredClient, name: e.target.value })}
+                  className="w-full bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold mt-2"
+                  placeholder="Nom du client"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">
+                  Téléphone
+                </label>
+                <input
+                  type="text"
+                  value={newRegisteredClient.phone}
+                  onChange={e => setNewRegisteredClient({ ...newRegisteredClient, phone: e.target.value })}
+                  className="w-full bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold mt-2"
+                  placeholder="+216 XX XXX XXX"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={newRegisteredClient.email}
+                  onChange={e => setNewRegisteredClient({ ...newRegisteredClient, email: e.target.value })}
+                  className="w-full bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold mt-2"
+                  placeholder="email@example.com"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">
+                  Notes
+                </label>
+                <textarea
+                  value={newRegisteredClient.notes}
+                  onChange={e => setNewRegisteredClient({ ...newRegisteredClient, notes: e.target.value })}
+                  className="w-full bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold mt-2"
+                  placeholder="Notes sur le client..."
+                  rows={3}
+                />
+              </div>
+            </div>
+            <div className="flex gap-4 mt-8">
+              <button
+                onClick={() => {
+                  setIsAddingClient(false);
+                  setNewRegisteredClient({ name: '', phone: '', email: '', notes: '' });
+                }}
+                className="flex-1 py-4 bg-zinc-800 text-white rounded-xl font-bold"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={addRegisteredClient}
+                style={{ backgroundColor: settings.theme_color || '#eab308' }}
+                className="flex-1 py-4 text-black rounded-xl font-black"
+              >
+                Ajouter
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
+

@@ -32,6 +32,14 @@ export const Login: React.FC = () => {
         const user = {
           username: data.username,
           role: data.role || 'user',
+          can_manage_billiard: data.can_manage_billiard || false,
+          can_manage_ps4: data.can_manage_ps4 || false,
+          can_manage_bar: data.can_manage_bar || false,
+          can_view_analytics: data.can_view_analytics || false,
+          can_view_agenda: data.can_view_agenda || false,
+          can_manage_clients: data.can_manage_clients || false,
+          can_manage_settings: data.can_manage_settings || false,
+          can_manage_users: data.can_manage_users || false,
         };
         setUser(user);
         localStorage.setItem('billard_auth', JSON.stringify(user));

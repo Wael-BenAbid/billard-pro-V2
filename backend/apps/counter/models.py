@@ -310,3 +310,69 @@ class BarOrder(models.Model):
     @property
     def formatted_price(self):
         return self.get_formatted_price()
+
+
+class Client(models.Model):
+    """Model for registered clients."""
+    name = models.CharField(max_length=100, unique=True)
+    phone = models.CharField(max_length=20, blank=True, default='')
+    email = models.EmailField(blank=True, default='')
+    notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Client'
+        verbose_name_plural = 'Clients'
+
+    def __str__(self):
+        return self.name
+
+
+class UserProfile(models.Model):
+    """Model for user roles and permissions."""
+    ROLE_CHOICES = [
+        ('admin', 'Administrateur'),
+        ('user', 'Utilisateur'),
+    ]
+    
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='user')
+    
+    # Permissions
+    can_manage_billiard = models.BooleanField(default=False)
+    can_manage_ps4 = models.BooleanField(default=False)
+    can_manage_bar = models.BooleanField(default=False)
+    can_view_analytics = models.BooleanField(default=False)
+    can_view_agenda = models.BooleanField(default=False)
+    can_manage_clients = models.BooleanField(default=False)
+    can_manage_settings = models.BooleanField(default=False)
+    can_manage_users = models.BooleanField(default=False)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Profil utilisateur'
+        verbose_name_plural = 'Profils utilisateurs'
+
+    def __str__(self):
+        return f"{self.user.username} - {self.get_role_display()}"
+
+    def save(self, *args, **kwargs):
+        # Auto-set permissions based on role
+        if self.role == 'admin':
+            self.can_manage_billiard = True
+            self.can_manage_ps4 = True
+            self.can_manage_bar = True
+            self.can_view_analytics = True
+            self.can_view_agenda = True
+            self.can_manage_clients = True
+            self.can_manage_settings = True
+            self.can_manage_users = True
+        else:  # user
+            # Keep individual permissions for users
+            pass
+        
+        super().save(*args, **kwargs)

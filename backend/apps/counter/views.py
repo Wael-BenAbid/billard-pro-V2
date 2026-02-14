@@ -8,13 +8,14 @@ from django.contrib.auth.models import User
 from .models import (
     AppSettings, BilliardTable, BilliardSession,
     PS4Game, PS4TimeOption, PS4Session,
-    InventoryItem, BarOrder
+    InventoryItem, BarOrder, Client, UserProfile
 )
 from .serializers import (
     AppSettingsSerializer, BilliardTableSerializer, BilliardSessionSerializer,
     StartSessionSerializer, StopSessionSerializer,
     PS4GameSerializer, PS4TimeOptionSerializer, PS4SessionSerializer, CreatePS4SessionSerializer,
-    InventoryItemSerializer, BarOrderSerializer, CreateBarOrderSerializer
+    InventoryItemSerializer, BarOrderSerializer, CreateBarOrderSerializer,
+    ClientSerializer, UserProfileSerializer, UserSerializer, CreateUserSerializer
 )
 
 
@@ -247,11 +248,37 @@ def login_view(request):
     user = authenticate(username=username, password=password)
     
     if user:
-        return Response({
-            'username': user.username,
-            'role': 'admin' if user.is_staff else 'user',
-            'token': 'session-token-placeholder'  # In production, use JWT or similar
-        })
+        # Get user profile permissions
+        try:
+            profile = user.profile
+            return Response({
+                'username': user.username,
+                'role': profile.role,
+                'can_manage_billiard': profile.can_manage_billiard,
+                'can_manage_ps4': profile.can_manage_ps4,
+                'can_manage_bar': profile.can_manage_bar,
+                'can_view_analytics': profile.can_view_analytics,
+                'can_view_agenda': profile.can_view_agenda,
+                'can_manage_clients': profile.can_manage_clients,
+                'can_manage_settings': profile.can_manage_settings,
+                'can_manage_users': profile.can_manage_users,
+                'token': 'session-token-placeholder'  # In production, use JWT or similar
+            })
+        except:
+            # Fallback if no profile exists
+            return Response({
+                'username': user.username,
+                'role': 'admin' if user.is_staff else 'user',
+                'can_manage_billiard': user.is_staff,
+                'can_manage_ps4': user.is_staff,
+                'can_manage_bar': user.is_staff,
+                'can_view_analytics': user.is_staff,
+                'can_view_agenda': user.is_staff,
+                'can_manage_clients': user.is_staff,
+                'can_manage_settings': user.is_staff,
+                'can_manage_users': user.is_staff,
+                'token': 'session-token-placeholder'
+            })
     else:
         return Response(
             {'error': 'Identifiants incorrects'},
@@ -289,6 +316,31 @@ def create_admin_view(request):
         'message': f'Admin "{username}" créé avec succès',
         'username': user.username
     }, status=status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def verify_admin_password_view(request):
+    """Verify admin password for accessing restricted pages."""
+    password = request.data.get('password')
+    
+    if not password:
+        return Response(
+            {'error': 'Password requis'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Find any admin user and verify password
+    admin_users = User.objects.filter(is_staff=True)
+    
+    for admin_user in admin_users:
+        if admin_user.check_password(password):
+            return Response({'success': True})
+    
+    return Response(
+        {'error': 'Mot de passe incorrect'},
+        status=status.HTTP_401_UNAUTHORIZED
+    )
 
 
 class AppSettingsViewSet(viewsets.ModelViewSet):
@@ -941,3 +993,134 @@ def monthly_revenue(request, year, month):
             'formatted_total': f"{month_total / 1000:.3f} DT",
         }
     })
+
+
+# ============================================
+# CLIENT MODEL VIEWS
+# ============================================
+class ClientViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing registered clients."""
+    queryset = Client.objects.all()
+    serializer_class = ClientSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        queryset = Client.objects.all()
+        is_active = self.request.query_params.get('is_active', None)
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        return queryset
+
+
+# ============================================
+# USER MANAGEMENT VIEWS
+# ============================================
+class UserViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing users."""
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        queryset = User.objects.all()
+        is_active = self.request.query_params.get('is_active', None)
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        return queryset
+
+    def create(self, request, *args, **kwargs):
+        """Create a new user with profile."""
+        serializer = CreateUserSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        username = serializer.validated_data['username']
+        password = serializer.validated_data['password']
+        email = serializer.validated_data.get('email', '')
+        role = serializer.validated_data.get('role', 'user')
+        
+        # Check if username exists
+        if User.objects.filter(username=username).exists():
+            return Response(
+                {'error': f'L\'utilisateur "{username}" existe déjà'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Create user
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            password=password
+        )
+        
+        # Create profile
+        profile, created = UserProfile.objects.get_or_create(
+            user=user,
+            defaults={'role': role}
+        )
+        if not created:
+            profile.role = role
+            profile.save()
+        
+        return Response(
+            UserSerializer(user).data,
+            status=status.HTTP_201_CREATED
+        )
+
+    def destroy(self, request, *args, **kwargs):
+        """Delete a user."""
+        user = self.get_object()
+        
+        # Prevent deleting the last admin
+        if user.is_staff and User.objects.filter(is_staff=True).count() == 1:
+            return Response(
+                {'error': 'Impossible de supprimer le dernier administrateur'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        user.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['patch'])
+    def update_permissions(self, request, pk=None):
+        """Update user permissions."""
+        user = self.get_object()
+        
+        try:
+            profile = user.profile
+        except UserProfile.DoesNotExist:
+            profile = UserProfile.objects.create(user=user)
+        
+        # Update permissions
+        permissions_fields = [
+            'can_manage_billiard', 'can_manage_ps4', 'can_manage_bar',
+            'can_view_analytics', 'can_view_agenda', 'can_manage_clients',
+            'can_manage_settings', 'can_manage_users'
+        ]
+        
+        for field in permissions_fields:
+            if field in request.data:
+                setattr(profile, field, request.data[field])
+        
+        if 'role' in request.data:
+            profile.role = request.data['role']
+        
+        profile.save()
+        
+        # Return the full user data with flattened permissions
+        return Response(UserSerializer(user).data)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def get_current_user(request):
+    """Get current user info with permissions."""
+    username = request.query_params.get('username')
+    
+    if not username:
+        return Response({'error': 'Username requis'}, status=400)
+    
+    try:
+        user = User.objects.get(username=username)
+        return Response(UserSerializer(user).data)
+    except User.DoesNotExist:
+        return Response({'error': 'Utilisateur non trouvé'}, status=404)

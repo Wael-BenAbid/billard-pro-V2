@@ -1,8 +1,9 @@
 from rest_framework import serializers
+from django.contrib.auth.models import User
 from .models import (
     AppSettings, BilliardTable, BilliardSession,
     PS4Game, PS4TimeOption, PS4Session,
-    InventoryItem, BarOrder
+    InventoryItem, BarOrder, Client, UserProfile
 )
 
 
@@ -105,3 +106,109 @@ class CreateBarOrderSerializer(serializers.Serializer):
     items = serializers.ListField(
         child=serializers.DictField()
     )
+
+
+class ClientSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Client
+        fields = ['id', 'name', 'phone', 'email', 'notes', 'created_at', 'is_active']
+        read_only_fields = ['id', 'created_at']
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    username = serializers.ReadOnlyField(source='user.username')
+    email = serializers.ReadOnlyField(source='user.email')
+    
+    class Meta:
+        model = UserProfile
+        fields = [
+            'id', 'username', 'email', 'role',
+            'can_manage_billiard', 'can_manage_ps4', 'can_manage_bar',
+            'can_view_analytics', 'can_view_agenda', 'can_manage_clients',
+            'can_manage_settings', 'can_manage_users',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class UserSerializer(serializers.ModelSerializer):
+    role = serializers.SerializerMethodField()
+    can_manage_billiard = serializers.SerializerMethodField()
+    can_manage_ps4 = serializers.SerializerMethodField()
+    can_manage_bar = serializers.SerializerMethodField()
+    can_view_analytics = serializers.SerializerMethodField()
+    can_view_agenda = serializers.SerializerMethodField()
+    can_manage_clients = serializers.SerializerMethodField()
+    can_manage_settings = serializers.SerializerMethodField()
+    can_manage_users = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = User
+        fields = [
+            'id', 'username', 'email', 'is_staff', 'is_active',
+            'role', 'can_manage_billiard', 'can_manage_ps4', 'can_manage_bar',
+            'can_view_analytics', 'can_view_agenda', 'can_manage_clients',
+            'can_manage_settings', 'can_manage_users'
+        ]
+        read_only_fields = ['id']
+    
+    def get_role(self, obj):
+        try:
+            return obj.profile.role
+        except:
+            return 'user'
+    
+    def get_can_manage_billiard(self, obj):
+        try:
+            return obj.profile.can_manage_billiard
+        except:
+            return False
+    
+    def get_can_manage_ps4(self, obj):
+        try:
+            return obj.profile.can_manage_ps4
+        except:
+            return False
+    
+    def get_can_manage_bar(self, obj):
+        try:
+            return obj.profile.can_manage_bar
+        except:
+            return False
+    
+    def get_can_view_analytics(self, obj):
+        try:
+            return obj.profile.can_view_analytics
+        except:
+            return False
+    
+    def get_can_view_agenda(self, obj):
+        try:
+            return obj.profile.can_view_agenda
+        except:
+            return False
+    
+    def get_can_manage_clients(self, obj):
+        try:
+            return obj.profile.can_manage_clients
+        except:
+            return False
+    
+    def get_can_manage_settings(self, obj):
+        try:
+            return obj.profile.can_manage_settings
+        except:
+            return False
+    
+    def get_can_manage_users(self, obj):
+        try:
+            return obj.profile.can_manage_users
+        except:
+            return False
+
+
+class CreateUserSerializer(serializers.Serializer):
+    username = serializers.CharField(max_length=150)
+    password = serializers.CharField(min_length=6)
+    email = serializers.EmailField(required=False, default='')
+    role = serializers.ChoiceField(choices=['admin', 'user'], default='user')
