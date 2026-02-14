@@ -1,0 +1,62 @@
+# Environment files - CONTAIN SENSITIVE DATA
+.env
+.env.local
+.env.*.local
+*.env
+
+# Backend
+backend/.env
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.pyc
+backend/**/*.pyc
+backend/static/
+backend/media/
+backend/db.sqlite3
+
+# Frontend
+frontend/.env
+frontend/.env.local
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/*.local
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# SSL certificates - NEVER COMMIT
+*.pem
+*.key
+*.crt
+*.csr
+
+# Database
+*.db
+*.sqlite3
+
+# Secrets and credentials
+secrets.json
+credentials.json
+*.secret
