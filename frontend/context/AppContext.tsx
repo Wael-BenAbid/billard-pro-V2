@@ -276,12 +276,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         fetchSettings(),
         fetchSessions(),
         fetchPS4Games(),
+        fetchPS4Sessions(),
         fetchInventory(),
       ]);
       setLoading(false);
     };
     loadData();
-  }, [fetchSettings, fetchSessions, fetchPS4Games, fetchInventory]);
+  }, [fetchSettings, fetchSessions, fetchPS4Games, fetchPS4Sessions, fetchInventory]);
 
   // Auto-refresh active sessions every 10 seconds to update price
   useEffect(() => {
