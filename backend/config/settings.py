@@ -63,16 +63,32 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', 'Billarde'),
-        'USER': os.environ.get('DB_USER', 'postgres'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', '12345'),
-        'HOST': os.environ.get('DB_HOST', 'localhost'),
-        'PORT': os.environ.get('DB_PORT', '5433'),
+# Database configuration - supports both SQLite and PostgreSQL
+# Use DATABASE_URL=sqlite:///db.sqlite3 for SQLite (Docker)
+# Or set PostgreSQL environment variables for production
+
+DATABASE_URL = os.environ.get('DATABASE_URL', '')
+
+if DATABASE_URL.startswith('sqlite'):
+    # SQLite configuration (for Docker/simple deployment)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
     }
-}
+else:
+    # PostgreSQL configuration (for production)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('DB_NAME', 'Billarde'),
+            'USER': os.environ.get('DB_USER', 'postgres'),
+            'PASSWORD': os.environ.get('DB_PASSWORD', '12345'),
+            'HOST': os.environ.get('DB_HOST', 'localhost'),
+            'PORT': os.environ.get('DB_PORT', '5433'),
+        }
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -105,10 +121,14 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost",
+    "http://127.0.0.1",
+    "http://localhost:80",
+    "http://127.0.0.1:80",
 ]
 
-# Allow all origins in development
-CORS_ALLOW_ALL_ORIGINS = DEBUG
+# Allow all origins in development or Docker
+CORS_ALLOW_ALL_ORIGINS = DEBUG or os.environ.get('DATABASE_URL', '').startswith('sqlite')
 
 # REST Framework settings
 REST_FRAMEWORK = {

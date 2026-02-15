@@ -1,0 +1,117 @@
+# ============================================
+# DOCKER INSTRUCTIONS - Billarde Application
+# ============================================
+
+## Quick Start
+
+1. **Build and run the Docker container:**
+   ```bash
+   docker-compose down -v
+   docker-compose up -d --build
+   ```
+
+2. **Access the application:**
+   Open your browser and go to: http://localhost
+
+3. **Login credentials:**
+   - Username: admin
+   - Password: admin$123
+
+## Architecture
+
+This Docker container includes:
+- **Frontend**: React + Vite + TypeScript (served by Nginx on port 80)
+- **Backend**: Django + Django REST Framework (running on port 8000 internally)
+- **Database**: SQLite (stored in a Docker volume for persistence)
+
+## How It Works
+
+1. Nginx serves the frontend static files on port 80
+2. API requests to `/api/*` are proxied to Django running on port 8000
+3. SQLite database is stored in a Docker volume for persistence
+
+## Useful Commands
+
+### View container logs:
+```bash
+docker-compose logs -f
+```
+
+### View Django logs:
+```bash
+docker exec billarde cat /var/log/django.log
+```
+
+### View Nginx logs:
+```bash
+docker exec billarde cat /var/log/nginx.log
+```
+
+### Access Django shell:
+```bash
+docker exec -it billarde python /app/backend/manage.py shell
+```
+
+### Create a new admin user:
+```bash
+docker exec -it billarde python /app/backend/manage.py create_admin
+```
+
+### Stop the container:
+```bash
+docker-compose down
+```
+
+### Stop and remove all data:
+```bash
+docker-compose down -v
+```
+
+## Database
+
+The application uses SQLite for simplicity. The database file is stored at:
+- Container path: `/app/backend/db.sqlite3`
+- Docker volume: `sqlite_data`
+
+To backup the database:
+```bash
+docker cp billarde:/app/backend/db.sqlite3 ./backup.db
+```
+
+To restore the database:
+```bash
+docker cp ./backup.db billarde:/app/backend/db.sqlite3
+docker-compose restart
+```
+
+## Troubleshooting
+
+### Container won't start:
+1. Check logs: `docker-compose logs`
+2. Make sure port 80 is not in use by another application
+3. Try rebuilding: `docker-compose up -d --build`
+
+### Can't login:
+1. Make sure the container is running: `docker ps`
+2. Check if Django is running: `docker exec billarde curl http://localhost:8000/api/`
+3. Create a new admin user: `docker exec -it billarde python /app/backend/manage.py create_admin`
+
+### API errors:
+1. Check Django logs: `docker exec billarde cat /var/log/django_error.log`
+2. Check if migrations ran: `docker exec billarde cat /var/log/django.log | grep migrate`
+
+## Production Notes
+
+For production deployment:
+1. Change the Django SECRET_KEY in docker-compose.yml
+2. Set DEBUG=False
+3. Use HTTPS with a proper SSL certificate
+4. Consider using PostgreSQL instead of SQLite for better performance
+5. Set up proper backup procedures
+
+## Default Credentials
+
+- **Admin User**: admin
+- **Admin Password**: admin$123
+
+⚠️ IMPORTANT: Change these credentials immediately after first login!

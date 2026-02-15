@@ -60,3 +60,7 @@ Thumbs.db
 secrets.json
 credentials.json
 *.secret
+
+# Docker
+.docker/
+docker-data/

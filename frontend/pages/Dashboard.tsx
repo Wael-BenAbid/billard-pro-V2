@@ -2,6 +2,12 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import Swal from 'sweetalert2';
 
+// Dynamic API URL - works for both development and Docker
+const API_URL = import.meta.env.VITE_API_URL || 
+  (typeof window !== 'undefined' && window.location.port === '5173' 
+    ? 'http://localhost:8000/api' 
+    : '/api');
+
 // ============================================
 // COMPOSANT: LiveTimer
 // ============================================
@@ -559,7 +565,7 @@ export const Dashboard: React.FC = () => {
   useEffect(() => {
     const loadClientNames = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/clients/');
+        const response = await fetch(`${API_URL}/clients/`);
         if (response.ok) {
           const clients = await response.json();
           setClientNames(clients.map((c: any) => c.name).filter((name: string) => name && name !== 'Anonyme'));
@@ -731,7 +737,7 @@ export const Dashboard: React.FC = () => {
     if (!endTime) {
       try {
         // Créer une session active avec l'heure de début spécifiée
-        const response = await fetch('http://localhost:8000/api/sessions/start_with_time/', {
+        const response = await fetch(`${API_URL}/sessions/start_with_time/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -777,7 +783,7 @@ export const Dashboard: React.FC = () => {
     try {
       const today = new Date().toISOString().split('T')[0];
       
-      const response = await fetch('http://localhost:8000/api/sessions/add_manual/', {
+      const response = await fetch(`${API_URL}/sessions/add_manual/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

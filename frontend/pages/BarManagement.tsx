@@ -17,7 +17,11 @@ interface BarItem {
   is_paid: boolean;
 }
 
-const API_URL = 'http://localhost:8000/api';
+// Dynamic API URL - works for both development and Docker
+const API_URL = import.meta.env.VITE_API_URL || 
+  (typeof window !== 'undefined' && window.location.port === '5173' 
+    ? 'http://localhost:8000/api' 
+    : '/api');
 
 export const BarManagement: React.FC = () => {
   const { settings, inventory, createBarOrder, toggleBarPayment } = useAppContext();

@@ -10,7 +10,11 @@ import { Admin } from './pages/Admin';
 import { Analytics } from './pages/Analytics';
 import { Agenda } from './pages/Agenda';
 
-const API_URL = 'http://localhost:8000/api';
+// Dynamic API URL - works for both development and Docker
+const API_URL = import.meta.env.VITE_API_URL || 
+  (typeof window !== 'undefined' && window.location.port === '5173' 
+    ? 'http://localhost:8000/api' 
+    : '/api');
 
 // ============================================
 // COMPOSANT: Password Prompt Modal

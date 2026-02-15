@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 
-const API_URL = 'http://localhost:8000/api';
+// Dynamic API URL - works for both development and Docker
+const API_URL = import.meta.env.VITE_API_URL || 
+  (typeof window !== 'undefined' && window.location.port === '5173' 
+    ? 'http://localhost:8000/api' 
+    : '/api');
 
 export const Login: React.FC = () => {
   const { settings, setUser } = useAppContext();

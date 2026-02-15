@@ -3,6 +3,7 @@ Management command to create initial admin user.
 """
 from django.core.management.base import BaseCommand
 from django.contrib.auth.models import User
+from ...models import UserProfile
 
 
 class Command(BaseCommand):
@@ -10,17 +11,22 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         username = 'admin'
-        password = 'admin123'
+        password = 'admin$123'
         
         if User.objects.filter(username=username).exists():
             self.stdout.write(
                 self.style.WARNING(f'User "{username}" already exists.')
             )
         else:
-            User.objects.create_superuser(
+            user = User.objects.create_superuser(
                 username=username,
                 password=password,
-                email='admin@example.com'
+                email='admin@billarde.local'
+            )
+            # Create profile with admin role
+            UserProfile.objects.get_or_create(
+                user=user,
+                defaults={'role': 'admin'}
             )
             self.stdout.write(
                 self.style.SUCCESS(f'Successfully created admin user: {username}')

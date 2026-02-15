@@ -5,7 +5,11 @@ import autoTable from 'jspdf-autotable';
 import { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, WidthType, BorderStyle, AlignmentType } from 'docx';
 import { saveAs } from 'file-saver';
 
-const API_URL = 'http://localhost:8000/api';
+// Dynamic API URL - works for both development and Docker
+const API_URL = import.meta.env.VITE_API_URL || 
+  (typeof window !== 'undefined' && window.location.port === '5173' 
+    ? 'http://localhost:8000/api' 
+    : '/api');
 
 interface DayData {
   date: string;

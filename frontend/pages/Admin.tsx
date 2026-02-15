@@ -75,7 +75,11 @@ interface UserProfile {
   can_manage_users: boolean;
 }
 
-const API_URL = 'http://localhost:8000/api';
+// Dynamic API URL - works for both development and Docker
+const API_URL = import.meta.env.VITE_API_URL || 
+  (typeof window !== 'undefined' && window.location.port === '5173' 
+    ? 'http://localhost:8000/api' 
+    : '/api');
 
 export const Admin: React.FC = () => {
   const { 
@@ -84,7 +88,11 @@ export const Admin: React.FC = () => {
     ps4Games: contextPs4Games,
     inventory,
     refreshData,
+    user: currentUser,
   } = useAppContext();
+  
+  // Check if current user is admin
+  const isAdmin = currentUser?.role === 'admin';
   
   const [activeTab, setActiveTab] = useState<'general' | 'clients' | 'bar' | 'ps4' | 'users'>('general');
   const [clients, setClients] = useState<Client[]>([]);
@@ -1977,9 +1985,7 @@ export const Admin: React.FC = () => {
                       className="w-full bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold mt-2"
                     >
                       <option value="admin">Administrateur</option>
-                      <option value="manager">Gestionnaire</option>
-                      <option value="cashier">Caissier</option>
-                      <option value="viewer">Observateur</option>
+                      <option value="user">Utilisateur</option>
                     </select>
                   </div>
                 </div>
