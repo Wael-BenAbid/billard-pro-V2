@@ -1,6 +1,7 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils import timezone
 from django.db.models import Sum, Count, Q
 from django.contrib.auth import authenticate
@@ -20,10 +21,64 @@ from .serializers import (
 
 
 # ============================================
+# CUSTOM PERMISSIONS & MIXINS
+# ============================================
+class IsAuthenticatedOrReadOnly(permissions.BasePermission):
+    """Allow read-only access to unauthenticated users, require auth for write."""
+    def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        return request.user and request.user.is_authenticated
+
+
+class HasPermission(permissions.BasePermission):
+    """Check if user has specific permission from their profile."""
+    permission_map = {
+        'billiard': 'can_manage_billiard',
+        'ps4': 'can_manage_ps4',
+        'bar': 'can_manage_bar',
+        'analytics': 'can_view_analytics',
+        'agenda': 'can_view_agenda',
+        'clients': 'can_manage_clients',
+        'settings': 'can_manage_settings',
+        'users': 'can_manage_users',
+    }
+    
+    def __init__(self, required_permission=None):
+        self.required_permission = required_permission
+    
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        
+        if request.user.is_staff or request.user.is_superuser:
+            return True
+        
+        try:
+            profile = request.user.profile
+            if self.required_permission:
+                return getattr(profile, self.required_permission, False)
+            return True
+        except:
+            return request.user.is_staff
+
+
+class TogglePaidMixin:
+    """Mixin to provide unified toggle_payment action for all models with is_paid field."""
+    
+    @action(detail=True, methods=['post'])
+    def toggle_payment(self, request, pk=None):
+        """Toggle payment status - unified implementation for all payment-tracked models."""
+        obj = self.get_object()
+        obj.is_paid = not obj.is_paid
+        obj.save()
+        return Response(self.get_serializer(obj).data)
+
+
+# ============================================
 # CLIENT MANAGEMENT VIEWS
 # ============================================
 @api_view(['GET'])
-@permission_classes([permissions.AllowAny])
 def clients_list(request):
     """Get all unique clients with their statistics."""
     # Get unique client names from billiard sessions
@@ -88,7 +143,6 @@ def clients_list(request):
 
 
 @api_view(['GET'])
-@permission_classes([permissions.AllowAny])
 def client_history(request, client_name):
     """Get complete history for a specific client."""
     # Billiard sessions
@@ -153,7 +207,6 @@ def client_history(request, client_name):
 
 
 @api_view(['POST'])
-@permission_classes([permissions.AllowAny])
 def toggle_client_payment(request, client_name, item_type, item_id):
     """Toggle payment status for a specific item."""
     if item_type == 'billiard':
@@ -186,7 +239,6 @@ def toggle_client_payment(request, client_name, item_type, item_id):
 
 
 @api_view(['POST'])
-@permission_classes([permissions.AllowAny])
 def pay_all_client(request, client_name):
     """Mark all unpaid items as paid for a client."""
     # Update billiard sessions
@@ -208,7 +260,6 @@ def pay_all_client(request, client_name):
 
 
 @api_view(['DELETE'])
-@permission_classes([permissions.AllowAny])
 def delete_paid_client(request, client_name):
     """Delete all paid items for a client."""
     # Delete paid billiard sessions
@@ -235,7 +286,7 @@ def delete_paid_client(request, client_name):
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
 def login_view(request):
-    """Login endpoint for authentication."""
+    """Login endpoint for authentication with JWT tokens."""
     username = request.data.get('username')
     password = request.data.get('password')
     
@@ -248,6 +299,9 @@ def login_view(request):
     user = authenticate(username=username, password=password)
     
     if user:
+        # Generate JWT tokens
+        refresh = RefreshToken.for_user(user)
+        
         # Get user profile permissions
         try:
             profile = user.profile
@@ -262,7 +316,8 @@ def login_view(request):
                 'can_manage_clients': profile.can_manage_clients,
                 'can_manage_settings': profile.can_manage_settings,
                 'can_manage_users': profile.can_manage_users,
-                'token': 'session-token-placeholder'  # In production, use JWT or similar
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
             })
         except:
             # Fallback if no profile exists
@@ -277,7 +332,8 @@ def login_view(request):
                 'can_manage_clients': user.is_staff,
                 'can_manage_settings': user.is_staff,
                 'can_manage_users': user.is_staff,
-                'token': 'session-token-placeholder'
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
             })
     else:
         return Response(
@@ -319,9 +375,15 @@ def create_admin_view(request):
 
 
 @api_view(['POST'])
-@permission_classes([permissions.AllowAny])
 def verify_admin_password_view(request):
     """Verify admin password for accessing restricted pages."""
+    # Require authentication
+    if not request.user or not request.user.is_authenticated:
+        return Response(
+            {'error': 'Authentification requise'},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+    
     password = request.data.get('password')
     
     if not password:
@@ -330,12 +392,9 @@ def verify_admin_password_view(request):
             status=status.HTTP_400_BAD_REQUEST
         )
     
-    # Find any admin user and verify password
-    admin_users = User.objects.filter(is_staff=True)
-    
-    for admin_user in admin_users:
-        if admin_user.check_password(password):
-            return Response({'success': True})
+    # Verify the current user's password
+    if request.user.check_password(password):
+        return Response({'success': True})
     
     return Response(
         {'error': 'Mot de passe incorrect'},
@@ -346,7 +405,7 @@ def verify_admin_password_view(request):
 class AppSettingsViewSet(viewsets.ModelViewSet):
     """ViewSet for application settings."""
     serializer_class = AppSettingsSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         return AppSettings.objects.all()
@@ -361,14 +420,14 @@ class AppSettingsViewSet(viewsets.ModelViewSet):
 class BilliardTableViewSet(viewsets.ModelViewSet):
     """ViewSet for billiard tables."""
     serializer_class = BilliardTableSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
     queryset = BilliardTable.objects.all()
 
 
-class BilliardSessionViewSet(viewsets.ModelViewSet):
+class BilliardSessionViewSet(TogglePaidMixin, viewsets.ModelViewSet):
     """ViewSet for billiard sessions."""
     serializer_class = BilliardSessionSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
     queryset = BilliardSession.objects.all()
 
     def get_queryset(self):
@@ -503,14 +562,6 @@ class BilliardSessionViewSet(viewsets.ModelViewSet):
         
         return Response(BilliardSessionSerializer(session).data)
 
-    @action(detail=True, methods=['post'])
-    def toggle_payment(self, request, pk=None):
-        """Toggle payment status."""
-        session = self.get_object()
-        session.is_paid = not session.is_paid
-        session.save()
-        return Response(BilliardSessionSerializer(session).data)
-
     @action(detail=False, methods=['post'])
     def add_manual(self, request):
         """Add a manual session (for when counter was not started)."""
@@ -617,14 +668,14 @@ class BilliardSessionViewSet(viewsets.ModelViewSet):
 class PS4GameViewSet(viewsets.ModelViewSet):
     """ViewSet for PS4 games."""
     serializer_class = PS4GameSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
     queryset = PS4Game.objects.all()
 
 
 class PS4TimeOptionViewSet(viewsets.ModelViewSet):
     """ViewSet for PS4 time options."""
     serializer_class = PS4TimeOptionSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
     queryset = PS4TimeOption.objects.all()
 
     def get_queryset(self):
@@ -635,10 +686,10 @@ class PS4TimeOptionViewSet(viewsets.ModelViewSet):
         return queryset
 
 
-class PS4SessionViewSet(viewsets.ModelViewSet):
+class PS4SessionViewSet(TogglePaidMixin, viewsets.ModelViewSet):
     """ViewSet for PS4 sessions."""
     serializer_class = PS4SessionSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
     queryset = PS4Session.objects.all()
 
     def get_queryset(self):
@@ -681,26 +732,18 @@ class PS4SessionViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED
         )
 
-    @action(detail=True, methods=['post'])
-    def toggle_payment(self, request, pk=None):
-        """Toggle payment status."""
-        session = self.get_object()
-        session.is_paid = not session.is_paid
-        session.save()
-        return Response(PS4SessionSerializer(session).data)
-
 
 class InventoryItemViewSet(viewsets.ModelViewSet):
     """ViewSet for inventory items."""
     serializer_class = InventoryItemSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
     queryset = InventoryItem.objects.all()
 
 
-class BarOrderViewSet(viewsets.ModelViewSet):
+class BarOrderViewSet(TogglePaidMixin, viewsets.ModelViewSet):
     """ViewSet for bar orders."""
     serializer_class = BarOrderSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
     queryset = BarOrder.objects.all()
 
     def get_queryset(self):
@@ -735,18 +778,10 @@ class BarOrderViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED
         )
 
-    @action(detail=True, methods=['post'])
-    def toggle_payment(self, request, pk=None):
-        """Toggle payment status."""
-        order = self.get_object()
-        order.is_paid = not order.is_paid
-        order.save()
-        return Response(BarOrderSerializer(order).data)
-
 
 class StatsViewSet(viewsets.ViewSet):
     """ViewSet for statistics."""
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
     def list(self, request):
         """Get overall statistics."""
@@ -817,7 +852,6 @@ class StatsViewSet(viewsets.ViewSet):
 # AGENDA/CALENDAR VIEWS
 # ============================================
 @api_view(['GET'])
-@permission_classes([permissions.AllowAny])
 def daily_revenue(request, date_str):
     """Get revenue for a specific date.
     
@@ -919,7 +953,6 @@ def daily_revenue(request, date_str):
 
 
 @api_view(['GET'])
-@permission_classes([permissions.AllowAny])
 def monthly_revenue(request, year, month):
     """Get daily revenue for a specific month.
     
@@ -1002,7 +1035,7 @@ class ClientViewSet(viewsets.ModelViewSet):
     """ViewSet for managing registered clients."""
     queryset = Client.objects.all()
     serializer_class = ClientSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         queryset = Client.objects.all()
@@ -1019,7 +1052,7 @@ class UserViewSet(viewsets.ModelViewSet):
     """ViewSet for managing users."""
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         queryset = User.objects.all()
@@ -1111,16 +1144,10 @@ class UserViewSet(viewsets.ModelViewSet):
 
 
 @api_view(['GET'])
-@permission_classes([permissions.AllowAny])
 def get_current_user(request):
     """Get current user info with permissions."""
-    username = request.query_params.get('username')
+    # Require authentication - get user from JWT token
+    if not request.user or not request.user.is_authenticated:
+        return Response({'error': 'Authentification requise'}, status=401)
     
-    if not username:
-        return Response({'error': 'Username requis'}, status=400)
-    
-    try:
-        user = User.objects.get(username=username)
-        return Response(UserSerializer(user).data)
-    except User.DoesNotExist:
-        return Response({'error': 'Utilisateur non trouvé'}, status=404)
+    return Response(UserSerializer(request.user).data)

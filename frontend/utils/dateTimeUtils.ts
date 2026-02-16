@@ -1,17 +1,16 @@
-export const formatTime = (date: Date): string => {
-  return date.toLocaleTimeString('fr-FR');
-};
+/**
+ * Date/Time utilities - re-exports from formatting.ts for backward compatibility
+ * These functions are now centralized in formatting.ts
+ */
 
-export const formatDate = (date: Date): string => {
-  return date.toLocaleDateString('fr-FR');
-};
+export { formatTime, formatDate, formatPrice, formatDateTime, getMonthName, getDayName } from './formatting';
 
-export const formatPrice = (mil: number): string => {
-  if (mil < 10000) return `${Math.round(mil)} mil`;
-  const dt = mil / 1000;
-  return `${dt.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} DT`;
-};
-
+/**
+ * Calculate duration between two ISO date strings
+ * @param startTime - Start ISO date string
+ * @param stopTime - End ISO date string
+ * @returns Formatted duration string (Xh YYm ZZs)
+ */
 export const calculateDuration = (startTime: string, stopTime: string): string => {
   const start = new Date(startTime).getTime();
   const end = new Date(stopTime).getTime();
@@ -22,6 +21,11 @@ export const calculateDuration = (startTime: string, stopTime: string): string =
   return `${h}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
 };
 
+/**
+ * Format elapsed time since a start date (live timer format)
+ * @param startTime - Start ISO date string
+ * @returns Formatted time string (HH:MM:SS)
+ */
 export const formatElapsedTime = (startTime: string): string => {
   const start = new Date(startTime).getTime();
   const now = Date.now();
@@ -33,3 +37,4 @@ export const formatElapsedTime = (startTime: string): string => {
   
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
+

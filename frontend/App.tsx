@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AppProvider, useAppContext } from './context/AppContext';
+import { apiPost, handleApiError, getErrorMessage } from './utils';
 import { Login } from './pages/Login';
 import { Navbar } from './pages/Navbar';
 import { Dashboard } from './pages/Dashboard';
@@ -9,12 +10,6 @@ import { BarManagement } from './pages/BarManagement';
 import { Admin } from './pages/Admin';
 import { Analytics } from './pages/Analytics';
 import { Agenda } from './pages/Agenda';
-
-// Dynamic API URL - works for both development and Docker
-const API_URL = import.meta.env.VITE_API_URL || 
-  (typeof window !== 'undefined' && window.location.port === '5173' 
-    ? 'http://localhost:8000/api' 
-    : '/api');
 
 // ============================================
 // COMPOSANT: Password Prompt Modal
@@ -30,19 +25,10 @@ const PasswordPrompt: React.FC<{ onSuccess: () => void; onCancel: () => void }> 
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_URL}/auth/verify-admin-password/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
-      });
-
-      if (response.ok) {
-        onSuccess();
-      } else {
-        setError('Mot de passe incorrect');
-      }
+      await apiPost('/auth/verify-admin-password/', { password });
+      onSuccess();
     } catch (err) {
-      setError('Erreur de connexion');
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }

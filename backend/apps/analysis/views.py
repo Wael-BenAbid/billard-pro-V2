@@ -6,7 +6,7 @@ from .services import gemini_service
 
 class AnalysisViewSet(viewsets.ViewSet):
     """ViewSet for project analysis using Gemini AI."""
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
     @action(detail=False, methods=['post'])
     def analyze(self, request):

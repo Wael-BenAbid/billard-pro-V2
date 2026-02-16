@@ -5,14 +5,19 @@ Django settings for billiards_project_auditor project.
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+from datetime import timedelta
 
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-change-me-in-production')
+# SECURITY: Secret key must be set via environment variable in production
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
+if not SECRET_KEY:
+    raise ValueError('DJANGO_SECRET_KEY environment variable is required')
 
-DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
+# SECURITY: DEBUG must be explicitly enabled, defaults to False for safety
+DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
@@ -26,6 +31,7 @@ INSTALLED_APPS = [
     
     # Third party apps
     'rest_framework',
+    'rest_framework_simplejwt',
     'corsheaders',
     
     # Local apps
@@ -79,12 +85,17 @@ if DATABASE_URL.startswith('sqlite'):
     }
 else:
     # PostgreSQL configuration (for production)
+    # SECURITY: Database password must be set via environment variable
+    DB_PASSWORD = os.environ.get('DB_PASSWORD')
+    if not DB_PASSWORD:
+        raise ValueError('DB_PASSWORD environment variable is required for PostgreSQL')
+    
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
             'NAME': os.environ.get('DB_NAME', 'Billarde'),
             'USER': os.environ.get('DB_USER', 'postgres'),
-            'PASSWORD': os.environ.get('DB_PASSWORD', '12345'),
+            'PASSWORD': DB_PASSWORD,
             'HOST': os.environ.get('DB_HOST', 'localhost'),
             'PORT': os.environ.get('DB_PORT', '5433'),
         }
@@ -96,6 +107,9 @@ AUTH_PASSWORD_VALIDATORS = [
     },
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {
+            'min_length': 8,
+        }
     },
     {
         'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
@@ -115,7 +129,7 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# CORS settings
+# CORS settings - SECURITY: Only allow specific origins
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
@@ -127,18 +141,44 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:80",
 ]
 
-# Allow all origins in development or Docker
-CORS_ALLOW_ALL_ORIGINS = DEBUG or os.environ.get('DATABASE_URL', '').startswith('sqlite')
+# SECURITY: Never allow all origins, even in development
+# If you need to add more origins, add them to CORS_ALLOWED_ORIGINS
+CORS_ALLOW_ALL_ORIGINS = False
 
-# REST Framework settings
+# REST Framework settings with JWT authentication
 REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',
+        'rest_framework.permissions.IsAuthenticated',
     ],
     'DEFAULT_PARSER_CLASSES': [
         'rest_framework.parsers.JSONParser',
     ],
 }
+
+# JWT Settings
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': True,
+    'ALGORITHM': 'HS256',
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+}
+
+# Security headers for production
+if not DEBUG:
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
+    SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'False').lower() == 'true'
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 
 # Gemini API Key
 GEMINI_API_KEY = os.getenv('API_KEY', '')

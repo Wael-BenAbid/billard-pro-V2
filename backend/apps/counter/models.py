@@ -71,8 +71,8 @@ class BilliardSession(models.Model):
     def __str__(self):
         return f"{self.table_identifier} - {self.client_name} - {self.start_time}"
 
-    def calculate_price(self):
-        """Calculate price based on duration.
+    def _calculate_price_from_duration(self, duration_seconds):
+        """Helper method to calculate price from duration in seconds.
         
         Pricing rules:
         - 0 to 15 min: 150 mil/min
@@ -82,73 +82,57 @@ class BilliardSession(models.Model):
         - If price < 1000 mil → price = 1000 mil
         - If 1000 < price < 1500 mil → price = 1500 mil
         - If price >= 1500 mil → calculated price
+        
+        Args:
+            duration_seconds: Duration in seconds (int)
+            
+        Returns:
+            price: Price in millimes (int)
         """
         settings = AppSettings.get_settings()
+        minutes = duration_seconds / 60
         
+        # Calculate price based on duration
+        if minutes <= settings.threshold_mins:
+            # First period: rate_base per minute
+            price = int(minutes * settings.rate_base)
+        else:
+            # First period at rate_base + remaining at rate_reduced
+            price = int(settings.threshold_mins * settings.rate_base)
+            remaining_minutes = minutes - settings.threshold_mins
+            price += int(remaining_minutes * settings.rate_reduced)
+        
+        # Apply floor conditions
+        if price < settings.floor_min:
+            price = settings.floor_min
+        elif price < settings.floor_mid:
+            price = settings.floor_mid
+        
+        return price
+
+    def calculate_price(self):
+        """Calculate price based on session duration and update self.price.
+        
+        Used when session is completed (has end_time).
+        Updates both self.duration_seconds and self.price.
+        """
         if not self.end_time:
             return 0
         
         duration = (self.end_time - self.start_time).total_seconds()
         self.duration_seconds = int(duration)
-        
-        minutes = duration / 60
-        
-        # Calculate price based on duration
-        if minutes <= settings.threshold_mins:
-            # First period: rate_base per minute
-            price = int(minutes * settings.rate_base)
-        else:
-            # First period at rate_base + remaining at rate_reduced
-            price = int(settings.threshold_mins * settings.rate_base)
-            remaining_minutes = minutes - settings.threshold_mins
-            price += int(remaining_minutes * settings.rate_reduced)
-        
-        # Apply floor conditions
-        if price < settings.floor_min:
-            price = settings.floor_min
-        elif price < settings.floor_mid:
-            price = settings.floor_mid
-        
-        self.price = price
-        return price
+        self.price = self._calculate_price_from_duration(int(duration))
+        return self.price
 
     def calculate_current_price(self):
         """Calculate current price for active session.
         
-        Pricing rules:
-        - 0 to 15 min: 150 mil/min
-        - After 15 min: 135 mil/min (for additional minutes)
-        
-        Floor conditions:
-        - If price < 1000 mil → price = 1000 mil
-        - If 1000 < price < 1500 mil → price = 1500 mil
-        - If price >= 1500 mil → calculated price
+        Used for real-time price display without modifying model state.
+        Returns price without saving.
         """
-        settings = AppSettings.get_settings()
-        
-        # Calculate duration from start to now
         end_time = self.end_time if self.end_time else timezone.now()
         duration = (end_time - self.start_time).total_seconds()
-        
-        minutes = duration / 60
-        
-        # Calculate price based on duration
-        if minutes <= settings.threshold_mins:
-            # First period: rate_base per minute
-            price = int(minutes * settings.rate_base)
-        else:
-            # First period at rate_base + remaining at rate_reduced
-            price = int(settings.threshold_mins * settings.rate_base)
-            remaining_minutes = minutes - settings.threshold_mins
-            price += int(remaining_minutes * settings.rate_reduced)
-        
-        # Apply floor conditions
-        if price < settings.floor_min:
-            price = settings.floor_min
-        elif price < settings.floor_mid:
-            price = settings.floor_mid
-        
-        return price
+        return self._calculate_price_from_duration(int(duration))
 
     def stop_session(self):
         """Stop the session and calculate price."""
