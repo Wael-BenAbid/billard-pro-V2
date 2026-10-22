@@ -15,6 +15,8 @@ class AppSettings(models.Model):
     threshold_mins = models.IntegerField(default=15)
     floor_min = models.IntegerField(default=1000)
     floor_mid = models.IntegerField(default=1500)
+    # When a billiard session is stopped, immediately start a new one on the same table
+    auto_restart_on_stop = models.BooleanField(default=False)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

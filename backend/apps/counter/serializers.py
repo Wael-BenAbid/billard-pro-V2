@@ -13,7 +13,7 @@ class AppSettingsSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'club_name', 'logo_url', 'theme_color',
             'table_a_color', 'table_b_color', 'rate_base', 'rate_reduced',
-            'threshold_mins', 'floor_min', 'floor_mid'
+            'threshold_mins', 'floor_min', 'floor_mid', 'auto_restart_on_stop'
         ]
 
 

@@ -1103,6 +1103,32 @@ export const Admin: React.FC = () => {
             </div>
           </div>
 
+          {/* Comportement du compteur */}
+          <div className="bg-black/30 rounded-2xl p-6 mt-6 flex items-center justify-between gap-6">
+            <div>
+              <h3 className="text-lg font-bold text-white">Redémarrage automatique du compteur</h3>
+              <p className="text-sm text-zinc-400 mt-1">
+                Quand on clique sur « Arrêter », la partie est enregistrée et une nouvelle partie
+                démarre aussitôt sur la même table (sans perdre de minute).
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={!!displaySettings.auto_restart_on_stop}
+              onClick={() => handleUpdateSetting('auto_restart_on_stop', !displaySettings.auto_restart_on_stop)}
+              className={`relative shrink-0 w-16 h-9 rounded-full transition-colors ${
+                displaySettings.auto_restart_on_stop ? 'bg-green-500' : 'bg-zinc-700'
+              }`}
+            >
+              <span
+                className={`absolute top-1 left-1 w-7 h-7 rounded-full bg-white shadow transition-transform ${
+                  displaySettings.auto_restart_on_stop ? 'translate-x-7' : ''
+                }`}
+              />
+            </button>
+          </div>
+
           {/* Save Button */}
           {settingsHasChanges && (
             <div className="mt-6 flex justify-end">

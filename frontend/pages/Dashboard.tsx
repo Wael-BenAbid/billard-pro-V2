@@ -641,7 +641,9 @@ export const Dashboard: React.FC = () => {
       setActiveTableId(null);
       Swal.fire({
         title: 'Enregistré !',
-        text: 'La partie a été enregistrée',
+        text: settings.auto_restart_on_stop
+          ? 'Partie enregistrée — une nouvelle partie a démarré'
+          : 'La partie a été enregistrée',
         icon: 'success',
         background: '#09090b',
         color: '#fff',
@@ -658,7 +660,7 @@ export const Dashboard: React.FC = () => {
         color: '#fff',
       });
     }
-  }, [activeTableId, sessions, stopSession]);
+  }, [activeTableId, sessions, stopSession, settings.auto_restart_on_stop]);
 
   const handleCloseModal = () => {
     setShowClientModal(false);

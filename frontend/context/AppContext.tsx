@@ -82,6 +82,7 @@ interface AppSettings {
   threshold_mins: number;
   floor_min: number;
   floor_mid: number;
+  auto_restart_on_stop?: boolean;
 }
 
 interface User {
@@ -188,6 +189,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     threshold_mins: 15,
     floor_min: 1000,
     floor_mid: 1500,
+    auto_restart_on_stop: false,
   });
   const [stats, setStats] = useState<Stats | null>(null);
   const [user, setUser] = useState<User | null>(() => {

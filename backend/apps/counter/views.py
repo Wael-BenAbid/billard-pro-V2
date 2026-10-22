@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils import timezone
 from django.utils.dateparse import parse_date
+from django.db import transaction
 from django.db.models import Sum, Count, Q
 from django.db.models.functions import TruncDate
 from django.contrib.auth import authenticate
@@ -589,7 +590,19 @@ class BilliardSessionViewSet(TogglePaidMixin, viewsets.ModelViewSet):
         # Update client name if provided
         client_name = request.data.get('client_name', session.client_name)
         session.client_name = client_name
-        session.stop_session()
+
+        with transaction.atomic():
+            session.stop_session()
+
+            # Optional: chain the next game on the same table without losing a minute
+            if AppSettings.get_settings().auto_restart_on_stop:
+                BilliardSession.objects.create(
+                    table_identifier=session.table_identifier,
+                    table=session.table,
+                    client_name='Anonyme',
+                    start_time=session.end_time,
+                    is_active=True,
+                )
         
         return Response(BilliardSessionSerializer(session).data)
 
