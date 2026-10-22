@@ -443,34 +443,6 @@ def create_admin_view(request):
     }, status=status.HTTP_201_CREATED)
 
 
-@api_view(['POST'])
-def verify_admin_password_view(request):
-    """Verify admin password for accessing restricted pages."""
-    # Require authentication
-    if not request.user or not request.user.is_authenticated:
-        return Response(
-            {'error': 'Authentification requise'},
-            status=status.HTTP_401_UNAUTHORIZED
-        )
-    
-    password = request.data.get('password')
-    
-    if not password:
-        return Response(
-            {'error': 'Password requis'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    # Verify the current user's password
-    if request.user.check_password(password):
-        return Response({'success': True})
-    
-    return Response(
-        {'error': 'Mot de passe incorrect'},
-        status=status.HTTP_401_UNAUTHORIZED
-    )
-
-
 class AppSettingsViewSet(viewsets.ModelViewSet):
     """ViewSet for application settings."""
     serializer_class = AppSettingsSerializer

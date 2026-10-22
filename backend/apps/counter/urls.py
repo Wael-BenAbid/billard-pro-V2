@@ -5,7 +5,7 @@ from .views import (
     AppSettingsViewSet, BilliardTableViewSet, BilliardSessionViewSet,
     PS4GameViewSet, PS4TimeOptionViewSet, PS4SessionViewSet, InventoryItemViewSet,
     BarOrderViewSet, StatsViewSet, ClientViewSet, UserViewSet,
-    login_view, create_admin_view, verify_admin_password_view,
+    login_view, create_admin_view,
     clients_list, client_names, client_history,
     toggle_client_payment, pay_all_client, delete_paid_client,
     daily_revenue, monthly_revenue, get_current_user
@@ -30,7 +30,6 @@ urlpatterns = [
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('auth/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
     path('auth/create-admin/', create_admin_view, name='create-admin'),
-    path('auth/verify-admin-password/', verify_admin_password_view, name='verify-admin-password'),
     path('auth/me/', get_current_user, name='current-user'),
     
     # Client management endpoints
