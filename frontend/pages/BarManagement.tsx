@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
+import { authFetch } from '../utils/api';
 
 interface InventoryItem {
   id: number;
@@ -38,7 +39,7 @@ export const BarManagement: React.FC = () => {
 
   const loadBarItems = async () => {
     try {
-      const res = await fetch(`${API_URL}/bar-orders/`);
+      const res = await authFetch(`${API_URL}/bar-orders/?recent=true`);
       if (res.ok) {
         const data = await res.json();
         setBarItems(data);

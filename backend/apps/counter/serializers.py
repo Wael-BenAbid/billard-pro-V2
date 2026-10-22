@@ -13,7 +13,7 @@ class AppSettingsSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'club_name', 'logo_url', 'theme_color',
             'table_a_color', 'table_b_color', 'rate_base', 'rate_reduced',
-            'threshold_mins', 'floor_min', 'floor_mid'
+            'threshold_mins', 'floor_min', 'floor_mid', 'auto_restart_on_stop'
         ]
 
 
@@ -150,7 +150,8 @@ class UserSerializer(serializers.ModelSerializer):
             'can_view_analytics', 'can_view_agenda', 'can_manage_clients',
             'can_manage_settings', 'can_manage_users'
         ]
-        read_only_fields = ['id']
+        # is_staff grants every permission: never writable through the API
+        read_only_fields = ['id', 'is_staff']
     
     def get_role(self, obj):
         try:

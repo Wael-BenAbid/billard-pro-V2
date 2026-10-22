@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { authFetch, AUTH_EXPIRED_EVENT } from '../utils/api';
 
 // Dynamic API URL - works for both development and Docker
 const API_URL = import.meta.env.VITE_API_URL || 
@@ -81,6 +82,7 @@ interface AppSettings {
   threshold_mins: number;
   floor_min: number;
   floor_mid: number;
+  auto_restart_on_stop?: boolean;
 }
 
 interface User {
@@ -187,6 +189,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     threshold_mins: 15,
     floor_min: 1000,
     floor_mid: 1500,
+    auto_restart_on_stop: false,
   });
   const [stats, setStats] = useState<Stats | null>(null);
   const [user, setUser] = useState<User | null>(() => {
@@ -194,13 +197,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : null;
   });
   const [loading, setLoading] = useState(true);
+  const sessionsRef = useRef<BilliardSession[]>([]);
 
   // Fetch functions
   const fetchSessions = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/sessions/`);
+      const res = await authFetch(`${API_URL}/sessions/?recent=true`);
       if (res.ok) {
         const data = await res.json();
+        sessionsRef.current = data;
         setSessions(data);
       }
     } catch (error) {
@@ -210,7 +215,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const fetchPS4Sessions = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/ps4-sessions/`);
+      const res = await authFetch(`${API_URL}/ps4-sessions/?recent=true`);
       if (res.ok) {
         const data = await res.json();
         setPs4Sessions(data);
@@ -222,7 +227,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const fetchPS4Games = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/ps4-games/`);
+      const res = await authFetch(`${API_URL}/ps4-games/`);
       if (res.ok) {
         const data = await res.json();
         setPs4Games(data);
@@ -234,7 +239,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const fetchInventory = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/inventory/`);
+      const res = await authFetch(`${API_URL}/inventory/`);
       if (res.ok) {
         const data = await res.json();
         setInventory(data);
@@ -246,7 +251,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const fetchBarOrders = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/bar-orders/`);
+      const res = await authFetch(`${API_URL}/bar-orders/?recent=true`);
       if (res.ok) {
         const data = await res.json();
         setBarOrders(data);
@@ -258,7 +263,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const fetchSettings = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/settings/`);
+      const res = await authFetch(`${API_URL}/settings/`);
       if (res.ok) {
         const data = await res.json();
         setSettings(data);
@@ -270,7 +275,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const fetchStats = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/stats/`);
+      const res = await authFetch(`${API_URL}/stats/`);
       if (res.ok) {
         const data = await res.json();
         setStats(data);
@@ -280,8 +285,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  // Initial load
+  // Expired/invalid session: back to the login screen
   useEffect(() => {
+    const onAuthExpired = () => {
+      localStorage.removeItem('billard_auth');
+      setUser(null);
+    };
+    window.addEventListener(AUTH_EXPIRED_EVENT, onAuthExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onAuthExpired);
+  }, []);
+
+  // Initial load (once logged in — the API requires authentication)
+  const isLoggedIn = user !== null;
+  useEffect(() => {
+    if (!isLoggedIn) return;
     const loadData = async () => {
       setLoading(true);
       await Promise.all([
@@ -294,23 +311,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setLoading(false);
     };
     loadData();
-  }, [fetchSettings, fetchSessions, fetchPS4Games, fetchPS4Sessions, fetchInventory]);
+  }, [isLoggedIn, fetchSettings, fetchSessions, fetchPS4Games, fetchPS4Sessions, fetchInventory]);
 
-  // Auto-refresh active sessions every 10 seconds to update price
+  // Every 10 seconds, refresh only the active sessions (live price, and sessions
+  // started/stopped from another device) instead of reloading the whole history.
   useEffect(() => {
-    const hasActiveSessions = sessions.some(s => s.is_active);
-    if (!hasActiveSessions) return;
+    if (!isLoggedIn) return;
 
-    const interval = setInterval(() => {
-      fetchSessions();
-    }, 10000); // Refresh every 10 seconds
+    const refreshActive = async () => {
+      try {
+        const res = await authFetch(`${API_URL}/sessions/active/`);
+        if (!res.ok) return;
+        const active: BilliardSession[] = await res.json();
+        const activeById = new Map(active.map(s => [s.id, s]));
+        const knownActiveIds = sessionsRef.current.filter(s => s.is_active).map(s => s.id);
+        const changedElsewhere =
+          knownActiveIds.length !== active.length || knownActiveIds.some(id => !activeById.has(id));
 
+        if (changedElsewhere) {
+          // A session was started/stopped from another device: reload the (small) recent list
+          await fetchSessions();
+        } else if (active.length > 0) {
+          setSessions(prev => prev.map(s => (s.is_active ? activeById.get(s.id) ?? s : s)));
+        }
+      } catch (error) {
+        console.error('Error refreshing active sessions:', error);
+      }
+    };
+
+    const interval = setInterval(refreshActive, 10000);
     return () => clearInterval(interval);
-  }, [sessions, fetchSessions]);
+  }, [isLoggedIn, fetchSessions]);
 
   // Billiard actions
   const startSession = useCallback(async (tableIdentifier: string, clientName = 'Anonyme'): Promise<BilliardSession> => {
-    const res = await fetch(`${API_URL}/sessions/start/`, {
+    const res = await authFetch(`${API_URL}/sessions/start/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ table_identifier: tableIdentifier, client_name: clientName }),
@@ -322,7 +357,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [fetchSessions]);
 
   const stopSession = useCallback(async (sessionId: number, clientName?: string): Promise<BilliardSession> => {
-    const res = await fetch(`${API_URL}/sessions/${sessionId}/stop/`, {
+    const res = await authFetch(`${API_URL}/sessions/${sessionId}/stop/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ client_name: clientName }),
@@ -335,7 +370,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [fetchSessions, fetchStats]);
 
   const toggleSessionPayment = useCallback(async (sessionId: number) => {
-    const res = await fetch(`${API_URL}/sessions/${sessionId}/toggle_payment/`, {
+    const res = await authFetch(`${API_URL}/sessions/${sessionId}/toggle_payment/`, {
       method: 'POST',
     });
     if (!res.ok) throw new Error('Failed to toggle payment');
@@ -343,7 +378,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [fetchSessions]);
 
   const deleteSession = useCallback(async (sessionId: number) => {
-    const res = await fetch(`${API_URL}/sessions/${sessionId}/`, {
+    const res = await authFetch(`${API_URL}/sessions/${sessionId}/`, {
       method: 'DELETE',
     });
     if (!res.ok) throw new Error('Failed to delete session');
@@ -352,7 +387,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // PS4 actions
   const createPS4Session = useCallback(async (gameId: number, players: number, timeOptionId: number): Promise<PS4Session> => {
-    const res = await fetch(`${API_URL}/ps4-sessions/`, {
+    const res = await authFetch(`${API_URL}/ps4-sessions/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ game_id: gameId, players, time_option_id: timeOptionId }),
@@ -365,7 +400,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [fetchPS4Sessions, fetchStats]);
 
   const togglePS4Payment = useCallback(async (sessionId: number) => {
-    const res = await fetch(`${API_URL}/ps4-sessions/${sessionId}/toggle_payment/`, {
+    const res = await authFetch(`${API_URL}/ps4-sessions/${sessionId}/toggle_payment/`, {
       method: 'POST',
     });
     if (!res.ok) throw new Error('Failed to toggle payment');
@@ -374,7 +409,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Bar actions
   const createBarOrder = useCallback(async (clientName: string, items: { item_id: number; name: string; price: number; quantity: number }[]): Promise<BarOrder> => {
-    const res = await fetch(`${API_URL}/bar-orders/`, {
+    const res = await authFetch(`${API_URL}/bar-orders/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ client_name: clientName, items }),
@@ -387,7 +422,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [fetchBarOrders, fetchStats]);
 
   const toggleBarPayment = useCallback(async (orderId: number) => {
-    const res = await fetch(`${API_URL}/bar-orders/${orderId}/toggle_payment/`, {
+    const res = await authFetch(`${API_URL}/bar-orders/${orderId}/toggle_payment/`, {
       method: 'POST',
     });
     if (!res.ok) throw new Error('Failed to toggle payment');
@@ -396,7 +431,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Settings
   const updateSettings = useCallback(async (newSettings: Partial<AppSettings>) => {
-    const res = await fetch(`${API_URL}/settings/1/`, {
+    const res = await authFetch(`${API_URL}/settings/1/`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newSettings),

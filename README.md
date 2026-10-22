@@ -83,6 +83,8 @@ config/          # Configuration Django
 
 ## Installation
 
+> **Installation avec Docker (recommandée)** : voir [INSTALLATION.md](INSTALLATION.md) — une commande installe l'application sur n'importe quel PC Windows, avec sauvegarde/transfert des données.
+
 ### Prérequis
 - Node.js 18+
 - Python 3.10+

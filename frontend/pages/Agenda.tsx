@@ -4,6 +4,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, WidthType, BorderStyle, AlignmentType } from 'docx';
 import { saveAs } from 'file-saver';
+import { authFetch } from '../utils/api';
 
 // Dynamic API URL - works for both development and Docker
 const API_URL = import.meta.env.VITE_API_URL || 
@@ -114,7 +115,7 @@ export const Agenda: React.FC = () => {
   const fetchMonthData = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/agenda/monthly/${currentYear}/${currentMonth}/`);
+      const res = await authFetch(`${API_URL}/agenda/monthly/${currentYear}/${currentMonth}/`);
       if (res.ok) {
         const data = await res.json();
         setMonthData(data);
@@ -127,7 +128,7 @@ export const Agenda: React.FC = () => {
 
   const fetchDayData = async (date: string) => {
     try {
-      const res = await fetch(`${API_URL}/agenda/daily/${date}/`);
+      const res = await authFetch(`${API_URL}/agenda/daily/${date}/`);
       if (res.ok) {
         const data = await res.json();
         setDayData(data);

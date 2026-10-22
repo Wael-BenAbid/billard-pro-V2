@@ -1,10 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useAppContext } from '../context/AppContext';
+import { API_URL, authFetch } from '../utils/api';
 
 export const Analytics: React.FC = () => {
-  const { sessions, ps4Sessions, settings, stats } = useAppContext();
+  const { settings, stats, fetchStats } = useAppContext();
   const navigate = useNavigate();
   
   const [dateRange, setDateRange] = useState({
@@ -18,18 +19,35 @@ export const Analytics: React.FC = () => {
     return `${dt.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} DT`;
   };
 
-  const filteredSessions = useMemo(() => {
-    return sessions.filter(s => {
-      const date = s.start_time.split('T')[0];
-      return date >= dateRange.start && date <= dateRange.end && !s.is_active;
-    });
-  }, [sessions, dateRange]);
+  // Only the selected period is requested from the server (not the whole history)
+  const [filteredSessions, setFilteredSessions] = useState<{ start_time: string; price: number }[]>([]);
+  const [filteredPs4Sessions, setFilteredPs4Sessions] = useState<{ date: string; price: number }[]>([]);
 
-  const filteredPs4Sessions = useMemo(() => {
-    return ps4Sessions.filter(s => {
-      return s.date >= dateRange.start && s.date <= dateRange.end;
-    });
-  }, [ps4Sessions, dateRange]);
+  useEffect(() => {
+    if (!dateRange.start || !dateRange.end) return;
+    const period = `start_date=${dateRange.start}&end_date=${dateRange.end}`;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [billiardRes, ps4Res] = await Promise.all([
+          authFetch(`${API_URL}/sessions/?is_active=false&${period}`),
+          authFetch(`${API_URL}/ps4-sessions/?${period}`),
+        ]);
+        if (cancelled) return;
+        if (billiardRes.ok) setFilteredSessions(await billiardRes.json());
+        if (ps4Res.ok) setFilteredPs4Sessions(await ps4Res.json());
+      } catch (error) {
+        console.error('Error loading analytics:', error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [dateRange.start, dateRange.end]);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   const totalBillard = filteredSessions.reduce((acc, s) => acc + (s.price || 0), 0);
   const totalPs4 = filteredPs4Sessions.reduce((acc, s) => acc + (s.price || 0), 0);

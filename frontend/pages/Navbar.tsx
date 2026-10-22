@@ -34,15 +34,15 @@ export const Navbar: React.FC<NavbarProps> = ({
   });
 
   return (
-    <nav className="sticky top-0 z-[60] bg-black/80 backdrop-blur-2xl border-b border-white/5 px-8 py-4 flex items-center justify-between">
-      <div className="flex items-center gap-6">
+    <nav className="sticky top-0 z-[60] bg-black/80 backdrop-blur-2xl border-b border-white/5 px-4 md:px-8 py-3 md:py-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center gap-3 md:gap-6 min-w-0">
         <h2
           style={{ color: themeColor }}
-          className="font-black text-2xl italic tracking-tighter"
+          className="font-black text-2xl italic tracking-tighter whitespace-nowrap"
         >
           {clubName}
         </h2>
-        <div className="flex bg-zinc-900/50 p-1 rounded-2xl border border-white/5 gap-1">
+        <div className="flex bg-zinc-900/50 p-1 rounded-2xl border border-white/5 gap-1 overflow-x-auto max-w-full">
           {tabs.map(t => (
             <NavLink
               key={t.id}

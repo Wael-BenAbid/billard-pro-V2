@@ -4,18 +4,25 @@
 
 ## Quick Start
 
-1. **Build and run the Docker container:**
+1. **Create the configuration file (first time only):**
    ```bash
-   docker-compose down -v
-   docker-compose up -d --build
+   cp .env.example .env
+   python -c "import secrets;print(secrets.token_urlsafe(50))"   # paste it as DJANGO_SECRET_KEY in .env
    ```
+   Optionally set ADMIN_USERNAME / ADMIN_PASSWORD in .env (used only when the database is empty).
 
-2. **Access the application:**
+2. **Build and run the Docker container:**
+   ```bash
+   docker compose up -d --build
+   ```
+   This keeps your data. Do NOT add `-v` to `docker compose down`: it deletes the database.
+
+3. **Access the application:**
    Open your browser and go to: http://localhost
 
-3. **Login credentials:**
-   - Username: admin
-   - Password: admin$123
+4. **Login credentials:**
+   - Username: value of ADMIN_USERNAME (default: admin)
+   - Password: value of ADMIN_PASSWORD, or the generated one shown once in `docker logs billarde`
 
 ## Architecture
 
@@ -39,12 +46,12 @@ docker-compose logs -f
 
 ### View Django logs:
 ```bash
-docker exec billarde cat /var/log/django.log
+docker logs billarde
 ```
 
 ### View Nginx logs:
 ```bash
-docker exec billarde cat /var/log/nginx.log
+docker logs billarde
 ```
 
 ### Access Django shell:
@@ -70,17 +77,17 @@ docker-compose down -v
 ## Database
 
 The application uses SQLite for simplicity. The database file is stored at:
-- Container path: `/app/backend/db.sqlite3`
+- Container path: `/app/data/db.sqlite3`
 - Docker volume: `sqlite_data`
 
 To backup the database:
 ```bash
-docker cp billarde:/app/backend/db.sqlite3 ./backup.db
+docker cp billarde:/app/data/db.sqlite3 ./backup.db
 ```
 
 To restore the database:
 ```bash
-docker cp ./backup.db billarde:/app/backend/db.sqlite3
+docker cp ./backup.db billarde:/app/data/db.sqlite3
 docker-compose restart
 ```
 
@@ -97,21 +104,20 @@ docker-compose restart
 3. Create a new admin user: `docker exec -it billarde python /app/backend/manage.py create_admin`
 
 ### API errors:
-1. Check Django logs: `docker exec billarde cat /var/log/django_error.log`
-2. Check if migrations ran: `docker exec billarde cat /var/log/django.log | grep migrate`
+1. Check Django logs: `docker logs billarde`
+2. Check if migrations ran: `docker logs billarde | grep migrate`
 
 ## Production Notes
 
 For production deployment:
-1. Change the Django SECRET_KEY in docker-compose.yml
+1. Set a unique DJANGO_SECRET_KEY in .env (never commit .env)
 2. Set DEBUG=False
 3. Use HTTPS with a proper SSL certificate
 4. Consider using PostgreSQL instead of SQLite for better performance
 5. Set up proper backup procedures
 
-## Default Credentials
+## Changing the admin password
 
-- **Admin User**: admin
-- **Admin Password**: admin$123
-
-⚠️ IMPORTANT: Change these credentials immediately after first login!
+```bash
+docker exec -it billarde python manage.py changepassword admin
+```

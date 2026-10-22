@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import Swal from 'sweetalert2';
+import { authFetch } from '../utils/api';
 
 // Dynamic API URL - works for both development and Docker
 const API_URL = import.meta.env.VITE_API_URL || 
@@ -46,8 +47,21 @@ const LiveTimer: React.FC<LiveTimerProps> = ({ startTime }) => {
     return () => clearInterval(interval);
   }, [startTime]);
 
-  return <span className="font-mono text-6xl">{elapsed}</span>;
+  return <span className="font-mono text-5xl md:text-6xl font-black tracking-tight tabular-nums">{elapsed}</span>;
 };
+
+// ============================================
+// HELPERS: heures / prix
+// ============================================
+const formatHour = (iso?: string | null) =>
+  iso ? new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '--:--';
+
+const isToday = (iso: string) => new Date(iso).toDateString() === new Date().toDateString();
+
+const formatDay = (iso: string) =>
+  new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+
+const formatDT = (mil: number) => `${(mil / 1000).toFixed(3)} DT`;
 
 // ============================================
 // COMPOSANT: TableCard
@@ -72,74 +86,83 @@ const TableCard: React.FC<TableCardProps> = ({
   onCancel,
 }) => {
   return (
-    <div className="bg-zinc-900/50 rounded-[2.5rem] p-8 border-2 relative overflow-hidden"
-      style={{ borderColor: activeSession ? color : 'rgba(255,255,255,0.1)' }}
+    <div
+      className="bg-zinc-900/60 rounded-[2rem] p-6 md:p-8 border-2 relative overflow-hidden transition-colors"
+      style={{ borderColor: activeSession ? color : 'rgba(255,255,255,0.06)' }}
     >
-      {activeSession && (
-        <div 
-          className="absolute top-0 right-0 w-32 h-32 blur-[80px] rounded-full opacity-20"
-          style={{ backgroundColor: color }}
-        />
-      )}
+      {/* Halo coloré */}
+      <div
+        className={`absolute -top-16 -right-16 w-48 h-48 blur-[90px] rounded-full transition-opacity ${activeSession ? 'opacity-30' : 'opacity-10'}`}
+        style={{ backgroundColor: color }}
+      />
 
-      <div className="flex justify-between items-center relative z-10">
+      <div className="flex flex-wrap justify-between items-start gap-4 relative z-10">
         <div>
-          <h3 className="text-4xl font-black italic uppercase tracking-tighter" style={{ color }}>
+          <h3 className="text-3xl md:text-4xl whitespace-nowrap font-black italic uppercase tracking-tighter" style={{ color }}>
             {tableName}
           </h3>
-          <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mt-1">
-            {activeSession ? 'EN COURS' : 'LIBRE'}
-          </p>
+          <span
+            className={`mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+              activeSession ? 'bg-white/10 text-white' : 'bg-emerald-500/10 text-emerald-400'
+            }`}
+          >
+            <span
+              className={`w-2 h-2 rounded-full ${activeSession ? 'animate-pulse' : 'bg-emerald-400'}`}
+              style={activeSession ? { backgroundColor: color } : undefined}
+            />
+            {activeSession ? 'En cours' : 'Libre'}
+          </span>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex gap-2">
           {activeSession && (
             <button
               onClick={() => onCancel(tableIdentifier)}
-              className="px-6 py-4 rounded-2xl font-black text-lg uppercase tracking-wider transition-all bg-zinc-700 hover:bg-zinc-600 text-zinc-300"
+              className="px-4 py-3 rounded-2xl font-black text-sm uppercase tracking-wider transition-all bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
             >
-              ANNULER
+              Annuler
             </button>
           )}
           <button
             onClick={() => activeSession ? onStop(tableIdentifier) : onStart(tableIdentifier)}
-            className={`px-8 py-4 rounded-2xl font-black text-lg uppercase tracking-wider transition-all ${
-              activeSession
-                ? 'bg-red-600 hover:bg-red-500 text-white'
-                : 'text-white hover:brightness-110'
+            className={`px-6 py-3 rounded-2xl font-black text-sm md:text-base uppercase tracking-wider transition-all shadow-lg active:scale-95 ${
+              activeSession ? 'bg-red-600 hover:bg-red-500 text-white' : 'text-white hover:brightness-110'
             }`}
             style={{ backgroundColor: activeSession ? undefined : color }}
           >
-            {activeSession ? 'ARRÊTER' : 'DÉMARRER'}
+            {activeSession ? 'Arrêter' : 'Démarrer'}
           </button>
         </div>
       </div>
 
-      {activeSession && (
-        <div className="mt-8 text-center relative z-10">
-          <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mb-2">COMPTEUR</p>
-          <LiveTimer startTime={activeSession.start_time} />
-        </div>
-      )}
-
-      {activeSession && (
-        <div className="mt-6 grid grid-cols-2 gap-4 relative z-10">
-          <div className="bg-black/30 rounded-2xl p-4 text-center">
-            <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mb-1">CLIENT</p>
-            <p className="text-xl font-bold text-white">{activeSession.client_name || 'Anonyme'}</p>
+      {activeSession ? (
+        <div className="relative z-10">
+          <div className="mt-6 text-center">
+            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-[0.3em] mb-1">Compteur</p>
+            <div className="text-white">
+              <LiveTimer startTime={activeSession.start_time} />
+            </div>
           </div>
-          <div className="bg-black/30 rounded-2xl p-4 text-center">
-            <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mb-1">PRIX</p>
-            <p className="text-xl font-bold" style={{ color }}>
-              {activeSession.formatted_price}
-            </p>
+
+          <div className="mt-6 grid grid-cols-3 gap-3">
+            <div className="bg-black/40 rounded-2xl p-3 text-center min-w-0">
+              <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Client</p>
+              <p className="text-base md:text-lg font-bold text-white truncate">{activeSession.client_name || 'Anonyme'}</p>
+            </div>
+            <div className="bg-black/40 rounded-2xl p-3 text-center">
+              <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Arrivée</p>
+              <p className="text-base md:text-lg font-bold text-white font-mono">{formatHour(activeSession.start_time)}</p>
+            </div>
+            <div className="bg-black/40 rounded-2xl p-3 text-center">
+              <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Prix</p>
+              <p className="text-sm sm:text-base md:text-lg font-bold whitespace-nowrap" style={{ color }}>{activeSession.formatted_price}</p>
+            </div>
           </div>
         </div>
-      )}
-
-      {!activeSession && (
-        <div className="mt-8 h-32 bg-black/20 rounded-2xl flex items-center justify-center">
-          <p className="text-zinc-600 font-black italic text-2xl">LIBRE</p>
+      ) : (
+        <div className="mt-6 h-24 rounded-2xl border border-dashed border-white/10 flex flex-col items-center justify-center relative z-10">
+          <p className="text-zinc-500 font-black italic text-xl tracking-tight">Table disponible</p>
+          <p className="text-zinc-600 text-xs mt-1">Appuyez sur « Démarrer » à l'arrivée du client</p>
         </div>
       )}
     </div>
@@ -170,78 +193,84 @@ const SessionHistory: React.FC<SessionHistoryProps> = ({
   onAdd,
   isAdmin,
 }) => {
+  const total = sessions.reduce((sum, s) => sum + (s.price || 0), 0);
+  const unpaid = sessions.filter(s => !s.is_paid).reduce((sum, s) => sum + (s.price || 0), 0);
+
   return (
-    <div className="bg-zinc-900/30 rounded-[2rem] border border-white/5 p-6">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-xl font-black italic uppercase" style={{ color }}>
-          {title}
-        </h3>
+    <div className="bg-zinc-900/30 rounded-[2rem] border border-white/5 p-5 md:p-6">
+      <div className="flex justify-between items-start gap-3 mb-4">
+        <div>
+          <h3 className="text-lg font-black italic uppercase tracking-tight" style={{ color }}>
+            {title}
+          </h3>
+          <p className="text-xs text-zinc-500 mt-1">
+            {sessions.length} session{sessions.length > 1 ? 's' : ''} · {formatDT(total)}
+            {unpaid > 0 && <span className="text-rose-400"> · impayé {formatDT(unpaid)}</span>}
+          </p>
+        </div>
         {isAdmin && (
           <button
             onClick={() => onAdd(tableIdentifier)}
-            className="px-4 py-2 rounded-xl font-bold text-sm uppercase tracking-wider transition-all bg-indigo-600 hover:bg-indigo-500 text-white"
+            className="px-3 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all bg-indigo-600 hover:bg-indigo-500 text-white shrink-0"
           >
-            + AJOUTER
+            + Ajouter
           </button>
         )}
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="text-xs text-zinc-500 font-bold uppercase tracking-widest border-b border-white/10">
-              <th className="pb-3">CLIENT</th>
-              <th className="pb-3">DURÉE</th>
-              <th className="pb-3">PRIX</th>
-              <th className="pb-3 text-center">PAYÉ</th>
-              {isAdmin && <th className="pb-3 text-right">ACTIONS</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {sessions.length === 0 ? (
-              <tr>
-                <td colSpan={isAdmin ? 5 : 4} className="py-6 text-center text-zinc-500">
-                  Aucune session
-                </td>
-              </tr>
-            ) : (
-              sessions.map((session) => (
-                <tr key={session.id} className="border-b border-white/5 hover:bg-white/5">
-                  <td className="py-3 font-bold text-white">{session.client_name || 'Anonyme'}</td>
-                  <td className="py-3 text-zinc-400">
-                    {session.formatted_duration}
-                  </td>
-                  <td className="py-3 font-bold" style={{ color }}>
-                    {session.formatted_price}
-                  </td>
-                  <td className="py-3 text-center">
-                    <button
-                      onClick={() => onTogglePayment(session.id)}
-                      className={`px-3 py-1 rounded-full text-xs font-bold ${
-                        session.is_paid
-                          ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30'
-                          : 'bg-rose-500/20 text-rose-500 border border-rose-500/30'
-                      }`}
-                    >
-                      {session.is_paid ? 'OUI' : 'NON'}
-                    </button>
-                  </td>
-                  {isAdmin && (
-                    <td className="py-3 text-right">
-                      <button
-                        onClick={() => onDelete(session.id)}
-                        className="text-rose-500 hover:text-rose-400 text-xs font-bold uppercase tracking-wide"
-                      >
-                        SUPPRIMER
-                      </button>
-                    </td>
-                  )}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      {sessions.length === 0 ? (
+        <div className="py-8 text-center text-zinc-600 text-sm border border-dashed border-white/5 rounded-2xl">
+          Aucune session aujourd'hui
+        </div>
+      ) : (
+        <ul className="space-y-2 max-h-[28rem] overflow-y-auto pr-1">
+          {sessions.map((session) => (
+            <li
+              key={session.id}
+              className="flex items-center gap-3 bg-black/30 hover:bg-black/50 rounded-2xl px-4 py-3 transition-colors"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-baseline gap-x-2 min-w-0">
+                  <p className="font-bold text-white truncate max-w-full">{session.client_name || 'Anonyme'}</p>
+                  <span className="font-mono text-xs text-zinc-400 whitespace-nowrap">
+                    {!isToday(session.start_time) && <span className="text-amber-400/80">{formatDay(session.start_time)} · </span>}
+                    {formatHour(session.start_time)} → {formatHour(session.end_time)}
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-500 font-mono mt-0.5">{session.formatted_duration}</p>
+              </div>
+
+              <p className="font-black text-sm whitespace-nowrap" style={{ color }}>
+                {session.formatted_price}
+              </p>
+
+              <button
+                onClick={() => onTogglePayment(session.id)}
+                title={session.is_paid ? 'Marquer comme non payé' : 'Marquer comme payé'}
+                className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border shrink-0 ${
+                  session.is_paid
+                    ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                    : 'bg-rose-500/15 text-rose-400 border-rose-500/30'
+                }`}
+              >
+                {session.is_paid ? 'Payé' : 'Non payé'}
+              </button>
+
+              {isAdmin && (
+                <button
+                  onClick={() => onDelete(session.id)}
+                  title="Supprimer"
+                  className="text-zinc-600 hover:text-rose-400 transition-colors shrink-0"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 };
@@ -565,10 +594,10 @@ export const Dashboard: React.FC = () => {
   useEffect(() => {
     const loadClientNames = async () => {
       try {
-        const response = await fetch(`${API_URL}/clients/`);
+        const response = await authFetch(`${API_URL}/clients/names/`);
         if (response.ok) {
-          const clients = await response.json();
-          setClientNames(clients.map((c: any) => c.name).filter((name: string) => name && name !== 'Anonyme'));
+          const names: string[] = await response.json();
+          setClientNames(names);
         }
       } catch (error) {
         console.error('Erreur récupération clients:', error);
@@ -612,7 +641,9 @@ export const Dashboard: React.FC = () => {
       setActiveTableId(null);
       Swal.fire({
         title: 'Enregistré !',
-        text: 'La partie a été enregistrée',
+        text: settings.auto_restart_on_stop
+          ? 'Partie enregistrée — une nouvelle partie a démarré'
+          : 'La partie a été enregistrée',
         icon: 'success',
         background: '#09090b',
         color: '#fff',
@@ -629,7 +660,7 @@ export const Dashboard: React.FC = () => {
         color: '#fff',
       });
     }
-  }, [activeTableId, sessions, stopSession]);
+  }, [activeTableId, sessions, stopSession, settings.auto_restart_on_stop]);
 
   const handleCloseModal = () => {
     setShowClientModal(false);
@@ -737,7 +768,7 @@ export const Dashboard: React.FC = () => {
     if (!endTime) {
       try {
         // Créer une session active avec l'heure de début spécifiée
-        const response = await fetch(`${API_URL}/sessions/start_with_time/`, {
+        const response = await authFetch(`${API_URL}/sessions/start_with_time/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -783,7 +814,7 @@ export const Dashboard: React.FC = () => {
     try {
       const today = new Date().toISOString().split('T')[0];
       
-      const response = await fetch(`${API_URL}/sessions/add_manual/`, {
+      const response = await authFetch(`${API_URL}/sessions/add_manual/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -842,51 +873,51 @@ export const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="space-y-12">
-      {/* Tables */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <TableCard
-          tableIdentifier="A"
-          tableName="TABLE A"
-          color={settings.table_a_color}
-          activeSession={activeSessionA}
-          onStart={handleStart}
-          onStop={handleStop}
-          onCancel={handleCancel}
-        />
-        <TableCard
-          tableIdentifier="B"
-          tableName="TABLE B"
-          color={settings.table_b_color}
-          activeSession={activeSessionB}
-          onStart={handleStart}
-          onStop={handleStop}
-          onCancel={handleCancel}
-        />
-      </div>
-
-      {/* Historiques */}
-      <div className="space-y-6">
-        <SessionHistory
-          title="HISTORIQUE TABLE A"
-          sessions={historyA}
-          color={settings.table_a_color}
-          tableIdentifier="A"
-          onTogglePayment={handleTogglePayment}
-          onDelete={handleDelete}
-          onAdd={handleAdd}
-          isAdmin={isAdmin}
-        />
-        <SessionHistory
-          title="HISTORIQUE TABLE B"
-          sessions={historyB}
-          color={settings.table_b_color}
-          tableIdentifier="B"
-          onTogglePayment={handleTogglePayment}
-          onDelete={handleDelete}
-          onAdd={handleAdd}
-          isAdmin={isAdmin}
-        />
+    <div>
+      {/* Écran divisé : chaque table avec son historique en dessous */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-start">
+        <div className="space-y-6">
+          <TableCard
+            tableIdentifier="A"
+            tableName="TABLE A"
+            color={settings.table_a_color}
+            activeSession={activeSessionA}
+            onStart={handleStart}
+            onStop={handleStop}
+            onCancel={handleCancel}
+          />
+          <SessionHistory
+            title="Historique Table A"
+            sessions={historyA}
+            color={settings.table_a_color}
+            tableIdentifier="A"
+            onTogglePayment={handleTogglePayment}
+            onDelete={handleDelete}
+            onAdd={handleAdd}
+            isAdmin={isAdmin}
+          />
+        </div>
+        <div className="space-y-6">
+          <TableCard
+            tableIdentifier="B"
+            tableName="TABLE B"
+            color={settings.table_b_color}
+            activeSession={activeSessionB}
+            onStart={handleStart}
+            onStop={handleStop}
+            onCancel={handleCancel}
+          />
+          <SessionHistory
+            title="Historique Table B"
+            sessions={historyB}
+            color={settings.table_b_color}
+            tableIdentifier="B"
+            onTogglePayment={handleTogglePayment}
+            onDelete={handleDelete}
+            onAdd={handleAdd}
+            isAdmin={isAdmin}
+          />
+        </div>
       </div>
 
       {/* Modal pour le nom du client */}
