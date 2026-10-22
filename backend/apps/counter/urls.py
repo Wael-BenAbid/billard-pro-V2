@@ -6,7 +6,7 @@ from .views import (
     PS4GameViewSet, PS4TimeOptionViewSet, PS4SessionViewSet, InventoryItemViewSet,
     BarOrderViewSet, StatsViewSet, ClientViewSet, UserViewSet,
     login_view, create_admin_view, verify_admin_password_view,
-    clients_list, client_history,
+    clients_list, client_names, client_history,
     toggle_client_payment, pay_all_client, delete_paid_client,
     daily_revenue, monthly_revenue, get_current_user
 )
@@ -35,6 +35,7 @@ urlpatterns = [
     
     # Client management endpoints
     path('clients/', clients_list, name='clients-list'),
+    path('clients/names/', client_names, name='client-names'),
     path('clients/<str:client_name>/history/', client_history, name='client-history'),
     path('clients/<str:client_name>/toggle-payment/<str:item_type>/<int:item_id>/', toggle_client_payment, name='toggle-client-payment'),
     path('clients/<str:client_name>/pay-all/', pay_all_client, name='pay-all-client'),

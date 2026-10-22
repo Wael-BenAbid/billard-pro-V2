@@ -4,7 +4,7 @@
  */
 
 // API utilities
-export { API_URL, apiCall, apiGet, apiPost, apiPut, apiPatch, apiDelete, type ApiError } from './api';
+export { API_URL, authFetch, setAuthTokens, clearAuthTokens, AUTH_EXPIRED_EVENT, apiCall, apiGet, apiPost, apiPut, apiPatch, apiDelete, type ApiError } from './api';
 
 // Formatting utilities
 export {

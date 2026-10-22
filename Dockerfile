@@ -3,121 +3,99 @@
 # All-in-one container: Frontend + Backend + SQLite
 # ============================================
 
+# ---------- Stage 1: build the frontend ----------
+FROM node:22-slim AS frontend-build
+
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --legacy-peer-deps
+COPY frontend/ ./
+RUN npm run build
+
+# ---------- Stage 2: runtime ----------
 FROM python:3.11-slim
 
-# Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV DEBIAN_FRONTEND=noninteractive
+# SQLite database lives in a dedicated directory (mounted as a volume)
+ENV DATABASE_URL=sqlite:////app/data/db.sqlite3
+ENV SQLITE_PATH=/app/data/db.sqlite3
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    nodejs \
-    npm \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     nginx \
     supervisor \
     curl \
     sqlite3 \
     && rm -rf /var/lib/apt/lists/*
 
-# Create working directory
 WORKDIR /app
 
-# Copy backend requirements and install Python dependencies
 COPY backend/requirements.txt /app/backend/
-RUN pip install --no-cache-dir -r /app/backend/requirements.txt
-RUN pip install gunicorn
+RUN pip install --no-cache-dir -r /app/backend/requirements.txt gunicorn
 
-# Copy backend code
 COPY backend/ /app/backend/
+COPY --from=frontend-build /app/frontend/dist /app/frontend/dist
 
-# Copy frontend code
-COPY frontend/ /app/frontend/
-
-# Install frontend dependencies and build
-WORKDIR /app/frontend
-RUN npm install --legacy-peer-deps
-RUN npm run build
-
-# Create nginx configuration
-RUN mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
+RUN mkdir -p /app/data /var/log/supervisor
 
 # Nginx config
-RUN echo 'server {\n\
-    listen 80;\n\
-    server_name localhost;\n\
-\n\
-    # Frontend\n\
-    location / {\n\
-        root /app/frontend/dist;\n\
-        try_files $uri $uri/ /index.html;\n\
-    }\n\
-\n\
-    # Backend API\n\
-    location /api/ {\n\
-        proxy_pass http://127.0.0.1:8000;\n\
-        proxy_set_header Host $host;\n\
-        proxy_set_header X-Real-IP $remote_addr;\n\
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n\
-        proxy_set_header X-Forwarded-Proto $scheme;\n\
-    }\n\
-}' > /etc/nginx/sites-available/billarde
-
-RUN ln -sf /etc/nginx/sites-available/billarde /etc/nginx/sites-enabled/billarde
-RUN rm -f /etc/nginx/sites-enabled/default
-
-# Create log directory
-RUN mkdir -p /var/log/supervisor
+RUN printf '%s\n' \
+    'server {' \
+    '    listen 80;' \
+    '    server_name _;' \
+    '' \
+    '    # Frontend' \
+    '    location / {' \
+    '        root /app/frontend/dist;' \
+    '        try_files $uri $uri/ /index.html;' \
+    '    }' \
+    '' \
+    '    # Backend API' \
+    '    location /api/ {' \
+    '        proxy_pass http://127.0.0.1:8000;' \
+    '        proxy_set_header Host $host;' \
+    '        proxy_set_header X-Real-IP $remote_addr;' \
+    '        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;' \
+    '        proxy_set_header X-Forwarded-Proto $scheme;' \
+    '    }' \
+    '}' > /etc/nginx/sites-available/billarde \
+    && ln -sf /etc/nginx/sites-available/billarde /etc/nginx/sites-enabled/billarde \
+    && rm -f /etc/nginx/sites-enabled/default
 
 # Supervisor config to manage all processes
-RUN echo '[supervisord]\n\
-nodaemon=true\n\
-user=root\n\
-logfile=/var/log/supervisor/supervisord.log\n\
-pidfile=/var/run/supervisord.pid\n\
-\n\
-[program:django]\n\
-command=/bin/bash -c "cd /app/backend && python manage.py migrate && python manage.py create_admin && gunicorn config.wsgi:application --bind 0.0.0.0:8000"\n\
-directory=/app/backend\n\
-autostart=true\n\
-autorestart=true\n\
-stdout_logfile=/var/log/django.log\n\
-stderr_logfile=/var/log/django_error.log\n\
-\n\
-[program:nginx]\n\
-command=/usr/sbin/nginx -g "daemon off;"\n\
-autostart=true\n\
-autorestart=true\n\
-stdout_logfile=/var/log/nginx.log\n\
-stderr_logfile=/var/log/nginx_error.log\n\
-' > /etc/supervisor/conf.d/billarde.conf
+RUN printf '%s\n' \
+    '[supervisord]' \
+    'nodaemon=true' \
+    'user=root' \
+    'logfile=/var/log/supervisor/supervisord.log' \
+    'pidfile=/var/run/supervisord.pid' \
+    '' \
+    '[program:django]' \
+    'command=/bin/bash -c "python manage.py migrate --noinput && python manage.py create_admin && exec gunicorn config.wsgi:application --bind 127.0.0.1:8000 --workers 3"' \
+    'directory=/app/backend' \
+    'autostart=true' \
+    'autorestart=true' \
+    'stdout_logfile=/dev/stdout' \
+    'stdout_logfile_maxbytes=0' \
+    'stderr_logfile=/dev/stderr' \
+    'stderr_logfile_maxbytes=0' \
+    '' \
+    '[program:nginx]' \
+    'command=/usr/sbin/nginx -g "daemon off;"' \
+    'autostart=true' \
+    'autorestart=true' \
+    'stdout_logfile=/dev/stdout' \
+    'stdout_logfile_maxbytes=0' \
+    'stderr_logfile=/dev/stderr' \
+    'stderr_logfile_maxbytes=0' \
+    > /etc/supervisor/conf.d/billarde.conf
 
-# Create Django environment file with SQLite
-RUN echo "DJANGO_SECRET_KEY=docker-secret-key-change-in-production\n\
-DEBUG=False\n\
-ALLOWED_HOSTS=localhost,127.0.0.1\n\
-DATABASE_URL=sqlite:///db.sqlite3\n\
-" > /app/backend/.env
-
-# Create startup script
-RUN echo '#!/bin/bash\n\
-set -e\n\
-\n\
-# Create log directory\n\
-mkdir -p /var/log/supervisor\n\
-\n\
-# Start supervisor\n\
-exec /usr/bin/supervisord -c /etc/supervisor/supervisord.conf\n\
-' > /app/start.sh
-
-RUN chmod +x /app/start.sh
-
-# Expose port
 EXPOSE 80
 
-# Health check
+# /api/ requires auth (401) — any non-5xx answer means Django is up
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost/api/ || exit 1
+    CMD curl -fs http://localhost/ >/dev/null && \
+        curl -s -o /dev/null -w '%{http_code}' http://localhost/api/ | grep -qE '^[234]'
 
-# Start command
-CMD ["/app/start.sh"]
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/supervisord.conf"]

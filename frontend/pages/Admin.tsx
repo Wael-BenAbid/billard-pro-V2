@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import Swal from 'sweetalert2';
+import { authFetch } from '../utils/api';
 
 interface Client {
   name: string;
@@ -152,7 +153,7 @@ export const Admin: React.FC = () => {
 
   const fetchPS4Games = async () => {
     try {
-      const res = await fetch(`${API_URL}/ps4-games/`);
+      const res = await authFetch(`${API_URL}/ps4-games/`);
       if (res.ok) {
         const data = await res.json();
         setPs4Games(data);
@@ -165,7 +166,7 @@ export const Admin: React.FC = () => {
   const fetchClients = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/clients/`);
+      const res = await authFetch(`${API_URL}/clients/`);
       if (res.ok) {
         const data = await res.json();
         setClients(data);
@@ -179,7 +180,7 @@ export const Admin: React.FC = () => {
 
   const fetchRegisteredClients = async () => {
     try {
-      const res = await fetch(`${API_URL}/registered-clients/`);
+      const res = await authFetch(`${API_URL}/registered-clients/`);
       if (res.ok) {
         const data = await res.json();
         setRegisteredClients(data);
@@ -191,7 +192,7 @@ export const Admin: React.FC = () => {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch(`${API_URL}/users/`);
+      const res = await authFetch(`${API_URL}/users/`);
       if (res.ok) {
         const data = await res.json();
         setUsers(data);
@@ -214,7 +215,7 @@ export const Admin: React.FC = () => {
     }
 
     try {
-      const res = await fetch(`${API_URL}/registered-clients/`, {
+      const res = await authFetch(`${API_URL}/registered-clients/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newRegisteredClient),
@@ -259,7 +260,7 @@ export const Admin: React.FC = () => {
     }
 
     try {
-      const res = await fetch(`${API_URL}/users/`, {
+      const res = await authFetch(`${API_URL}/users/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newUser),
@@ -293,7 +294,7 @@ export const Admin: React.FC = () => {
 
   const updateUserPermissions = async (userId: number, permissions: Partial<UserProfile>) => {
     try {
-      const res = await fetch(`${API_URL}/users/${userId}/update_permissions/`, {
+      const res = await authFetch(`${API_URL}/users/${userId}/update_permissions/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(permissions),
@@ -330,7 +331,7 @@ export const Admin: React.FC = () => {
 
     if (result.isConfirmed) {
       try {
-        const res = await fetch(`${API_URL}/users/${userId}/`, {
+        const res = await authFetch(`${API_URL}/users/${userId}/`, {
           method: 'DELETE',
         });
         if (res.ok) {
@@ -362,7 +363,7 @@ export const Admin: React.FC = () => {
   const fetchClientHistory = async (clientName: string) => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/clients/${encodeURIComponent(clientName)}/history/`);
+      const res = await authFetch(`${API_URL}/clients/${encodeURIComponent(clientName)}/history/`);
       if (res.ok) {
         const data = await res.json();
         setSelectedClient(data);
@@ -378,7 +379,7 @@ export const Admin: React.FC = () => {
     if (!selectedClient) return;
     
     try {
-      const res = await fetch(
+      const res = await authFetch(
         `${API_URL}/clients/${encodeURIComponent(selectedClient.client_name)}/toggle-payment/${itemType}/${itemId}/`,
         { method: 'POST' }
       );
@@ -408,7 +409,7 @@ export const Admin: React.FC = () => {
     
     if (result.isConfirmed) {
       try {
-        const res = await fetch(
+        const res = await authFetch(
           `${API_URL}/clients/${encodeURIComponent(selectedClient.client_name)}/pay-all/`,
           { method: 'POST' }
         );
@@ -433,12 +434,12 @@ export const Admin: React.FC = () => {
     if (!selectedClient) return;
     
     const result = await Swal.fire({
-      title: 'Supprimer les payés',
-      text: `Supprimer tous les éléments payés de ${selectedClient.client_name} ?`,
+      title: 'Archiver les payés',
+      text: `Archiver tous les éléments payés de ${selectedClient.client_name} ? Ils disparaissent de cette fiche mais restent comptés dans l'Agenda et les statistiques.`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#ef4444',
-      confirmButtonText: 'Oui, supprimer',
+      confirmButtonText: 'Oui, archiver',
       cancelButtonText: 'Annuler',
       background: '#09090b',
       color: '#fff',
@@ -446,7 +447,7 @@ export const Admin: React.FC = () => {
     
     if (result.isConfirmed) {
       try {
-        const res = await fetch(
+        const res = await authFetch(
           `${API_URL}/clients/${encodeURIComponent(selectedClient.client_name)}/delete-paid/`,
           { method: 'DELETE' }
         );
@@ -454,7 +455,7 @@ export const Admin: React.FC = () => {
           await fetchClientHistory(selectedClient.client_name);
           Swal.fire({
             title: 'Succès',
-            text: 'Tous les éléments payés ont été supprimés',
+            text: 'Tous les éléments payés ont été archivés',
             icon: 'success',
             timer: 2000,
             background: '#09090b',
@@ -480,7 +481,7 @@ export const Admin: React.FC = () => {
 
   const saveSettings = async () => {
     try {
-      const res = await fetch(`${API_URL}/settings/1/`, {
+      const res = await authFetch(`${API_URL}/settings/1/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(pendingSettings),
@@ -548,7 +549,7 @@ export const Admin: React.FC = () => {
       for (const userId of userIds) {
         const permissions = pendingUserPermissions[parseInt(userId)];
         if (Object.keys(permissions).length > 0) {
-          const res = await fetch(`${API_URL}/users/${userId}/update_permissions/`, {
+          const res = await authFetch(`${API_URL}/users/${userId}/update_permissions/`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(permissions),
@@ -594,7 +595,7 @@ export const Admin: React.FC = () => {
   // Bar Item Management Functions
   const fetchBarItems = async () => {
     try {
-      const res = await fetch(`${API_URL}/inventory/`);
+      const res = await authFetch(`${API_URL}/inventory/`);
       if (res.ok) {
         const data = await res.json();
         setBarItems(data);
@@ -617,7 +618,7 @@ export const Admin: React.FC = () => {
     }
     
     try {
-      const res = await fetch(`${API_URL}/inventory/`, {
+      const res = await authFetch(`${API_URL}/inventory/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newBarItem),
@@ -643,7 +644,7 @@ export const Admin: React.FC = () => {
 
   const updateBarItem = async (itemId: number, data: any) => {
     try {
-      const res = await fetch(`${API_URL}/inventory/${itemId}/`, {
+      const res = await authFetch(`${API_URL}/inventory/${itemId}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -682,7 +683,7 @@ export const Admin: React.FC = () => {
 
     if (result.isConfirmed) {
       try {
-        const res = await fetch(`${API_URL}/inventory/${itemId}/`, {
+        const res = await authFetch(`${API_URL}/inventory/${itemId}/`, {
           method: 'DELETE',
         });
         if (res.ok) {
@@ -706,7 +707,7 @@ export const Admin: React.FC = () => {
   // PS4 Game Management Functions
   const updateGame = async (gameId: number, data: Partial<PS4Game>) => {
     try {
-      const res = await fetch(`${API_URL}/ps4-games/${gameId}/`, {
+      const res = await authFetch(`${API_URL}/ps4-games/${gameId}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -743,7 +744,7 @@ export const Admin: React.FC = () => {
     
     if (result.isConfirmed) {
       try {
-        const res = await fetch(`${API_URL}/ps4-games/${gameId}/`, {
+        const res = await authFetch(`${API_URL}/ps4-games/${gameId}/`, {
           method: 'DELETE',
         });
         if (res.ok) {
@@ -777,7 +778,7 @@ export const Admin: React.FC = () => {
     }
     
     try {
-      const res = await fetch(`${API_URL}/ps4-games/`, {
+      const res = await authFetch(`${API_URL}/ps4-games/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newGame),
@@ -803,7 +804,7 @@ export const Admin: React.FC = () => {
 
   const updateTimeOption = async (optionId: number, data: Partial<PS4TimeOption>) => {
     try {
-      const res = await fetch(`${API_URL}/ps4-time-options/${optionId}/`, {
+      const res = await authFetch(`${API_URL}/ps4-time-options/${optionId}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -840,7 +841,7 @@ export const Admin: React.FC = () => {
     
     if (result.isConfirmed) {
       try {
-        const res = await fetch(`${API_URL}/ps4-time-options/${optionId}/`, {
+        const res = await authFetch(`${API_URL}/ps4-time-options/${optionId}/`, {
           method: 'DELETE',
         });
         if (res.ok) {
@@ -876,7 +877,7 @@ export const Admin: React.FC = () => {
     try {
       // Generate label automatically from minutes
       const label = `${newTimeOption.minutes} min`;
-      const res = await fetch(`${API_URL}/ps4-time-options/`, {
+      const res = await authFetch(`${API_URL}/ps4-time-options/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1257,7 +1258,7 @@ export const Admin: React.FC = () => {
                   onClick={deletePaid}
                   className="px-6 py-4 bg-red-500/20 text-red-400 rounded-2xl font-black text-sm uppercase tracking-wider hover:bg-red-500/30 transition-all"
                 >
-                  🗑️ Supprimer les Payés
+                  📦 Archiver les Payés
                 </button>
               </div>
 
@@ -1864,7 +1865,7 @@ export const Admin: React.FC = () => {
                                     // Delete all options for this duration
                                     const optsToDelete = game.time_options.filter(opt => opt.minutes === minutes);
                                     optsToDelete.forEach(opt => {
-                                      fetch(`${API_URL}/ps4-time-options/${opt.id}/`, { method: 'DELETE' });
+                                      authFetch(`${API_URL}/ps4-time-options/${opt.id}/`, { method: 'DELETE' });
                                     });
                                     setTimeout(() => fetchPS4Games(), 300);
                                   }}

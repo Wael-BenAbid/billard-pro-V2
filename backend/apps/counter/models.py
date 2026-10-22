@@ -62,9 +62,17 @@ class BilliardSession(models.Model):
     is_paid = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    # Hidden from the client history ("supprimer les payés") but kept in revenue stats
+    archived = models.BooleanField(default=False)
 
     class Meta:
         ordering = ['-start_time']
+        indexes = [
+            models.Index(fields=['start_time']),
+            models.Index(fields=['is_active', 'start_time']),
+            models.Index(fields=['client_name', 'is_paid']),
+            models.Index(fields=['is_paid']),
+        ]
         verbose_name = 'Session billard'
         verbose_name_plural = 'Sessions billard'
 
@@ -234,6 +242,10 @@ class PS4Session(models.Model):
 
     class Meta:
         ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['date']),
+            models.Index(fields=['is_paid']),
+        ]
         verbose_name = 'Session PS4'
         verbose_name_plural = 'Sessions PS4'
 
@@ -272,9 +284,16 @@ class BarOrder(models.Model):
     date = models.DateField(auto_now_add=True)
     timestamp = models.DateTimeField(auto_now_add=True)
     is_paid = models.BooleanField(default=False)
+    # Hidden from the client history ("supprimer les payés") but kept in revenue stats
+    archived = models.BooleanField(default=False)
 
     class Meta:
         ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['date']),
+            models.Index(fields=['client_name', 'is_paid']),
+            models.Index(fields=['is_paid']),
+        ]
         verbose_name = 'Commande bar'
         verbose_name_plural = 'Commandes bar'
 

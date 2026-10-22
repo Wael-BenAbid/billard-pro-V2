@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import Swal from 'sweetalert2';
+import { authFetch } from '../utils/api';
 
 // Dynamic API URL - works for both development and Docker
 const API_URL = import.meta.env.VITE_API_URL || 
@@ -565,10 +566,10 @@ export const Dashboard: React.FC = () => {
   useEffect(() => {
     const loadClientNames = async () => {
       try {
-        const response = await fetch(`${API_URL}/clients/`);
+        const response = await authFetch(`${API_URL}/clients/names/`);
         if (response.ok) {
-          const clients = await response.json();
-          setClientNames(clients.map((c: any) => c.name).filter((name: string) => name && name !== 'Anonyme'));
+          const names: string[] = await response.json();
+          setClientNames(names);
         }
       } catch (error) {
         console.error('Erreur récupération clients:', error);
@@ -737,7 +738,7 @@ export const Dashboard: React.FC = () => {
     if (!endTime) {
       try {
         // Créer une session active avec l'heure de début spécifiée
-        const response = await fetch(`${API_URL}/sessions/start_with_time/`, {
+        const response = await authFetch(`${API_URL}/sessions/start_with_time/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -783,7 +784,7 @@ export const Dashboard: React.FC = () => {
     try {
       const today = new Date().toISOString().split('T')[0];
       
-      const response = await fetch(`${API_URL}/sessions/add_manual/`, {
+      const response = await authFetch(`${API_URL}/sessions/add_manual/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

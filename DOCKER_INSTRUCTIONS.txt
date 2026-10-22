@@ -39,12 +39,12 @@ docker-compose logs -f
 
 ### View Django logs:
 ```bash
-docker exec billarde cat /var/log/django.log
+docker logs billarde
 ```
 
 ### View Nginx logs:
 ```bash
-docker exec billarde cat /var/log/nginx.log
+docker logs billarde
 ```
 
 ### Access Django shell:
@@ -70,17 +70,17 @@ docker-compose down -v
 ## Database
 
 The application uses SQLite for simplicity. The database file is stored at:
-- Container path: `/app/backend/db.sqlite3`
+- Container path: `/app/data/db.sqlite3`
 - Docker volume: `sqlite_data`
 
 To backup the database:
 ```bash
-docker cp billarde:/app/backend/db.sqlite3 ./backup.db
+docker cp billarde:/app/data/db.sqlite3 ./backup.db
 ```
 
 To restore the database:
 ```bash
-docker cp ./backup.db billarde:/app/backend/db.sqlite3
+docker cp ./backup.db billarde:/app/data/db.sqlite3
 docker-compose restart
 ```
 
@@ -97,8 +97,8 @@ docker-compose restart
 3. Create a new admin user: `docker exec -it billarde python /app/backend/manage.py create_admin`
 
 ### API errors:
-1. Check Django logs: `docker exec billarde cat /var/log/django_error.log`
-2. Check if migrations ran: `docker exec billarde cat /var/log/django.log | grep migrate`
+1. Check Django logs: `docker logs billarde`
+2. Check if migrations ran: `docker logs billarde | grep migrate`
 
 ## Production Notes
 

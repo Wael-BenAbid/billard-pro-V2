@@ -1,15 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AppProvider, useAppContext } from './context/AppContext';
-import { apiPost, handleApiError, getErrorMessage } from './utils';
+import { apiPost, clearAuthTokens, handleApiError, getErrorMessage } from './utils';
 import { Login } from './pages/Login';
 import { Navbar } from './pages/Navbar';
 import { Dashboard } from './pages/Dashboard';
 import { PS4Management } from './pages/PS4Management';
 import { BarManagement } from './pages/BarManagement';
-import { Admin } from './pages/Admin';
-import { Analytics } from './pages/Analytics';
-import { Agenda } from './pages/Agenda';
+
+// Heavy pages (charts, PDF/Word export) are loaded on demand
+const Admin = lazy(() => import('./pages/Admin').then(m => ({ default: m.Admin })));
+const Analytics = lazy(() => import('./pages/Analytics').then(m => ({ default: m.Analytics })));
+const Agenda = lazy(() => import('./pages/Agenda').then(m => ({ default: m.Agenda })));
 
 // ============================================
 // COMPOSANT: Password Prompt Modal
@@ -145,6 +147,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem('billard_auth');
+    clearAuthTokens();
   };
 
   if (!user) {
@@ -174,6 +177,7 @@ const App: React.FC = () => {
     <AppProvider>
       <BrowserRouter>
         <Layout>
+          <Suspense fallback={<div className="text-center py-20 text-zinc-500">Chargement...</div>}>
           <Routes>
             <Route path="/" element={<ProtectedRoute permission="can_manage_billiard"><Dashboard /></ProtectedRoute>} />
             <Route path="/ps4" element={<ProtectedRoute permission="can_manage_ps4"><PS4Management /></ProtectedRoute>} />
@@ -183,6 +187,7 @@ const App: React.FC = () => {
             <Route path="/admin" element={<ProtectedRoute permission="can_manage_settings"><Admin /></ProtectedRoute>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </Suspense>
         </Layout>
       </BrowserRouter>
     </AppProvider>

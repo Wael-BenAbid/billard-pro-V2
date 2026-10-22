@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
+import { setAuthTokens } from '../utils/api';
 
 // Dynamic API URL - works for both development and Docker
 const API_URL = import.meta.env.VITE_API_URL || 
@@ -47,7 +48,7 @@ export const Login: React.FC = () => {
         };
         setUser(user);
         localStorage.setItem('billard_auth', JSON.stringify(user));
-        localStorage.setItem('billard_token', data.token || '');
+        setAuthTokens(data.access, data.refresh);
       } else {
         const errorData = await response.json();
         setError(errorData.error || 'Identifiants incorrects');

@@ -9,6 +9,77 @@ export const API_URL = import.meta.env.VITE_API_URL ||
     ? 'http://localhost:8000/api' 
     : '/api');
 
+// ============================================
+// JWT AUTHENTICATION
+// ============================================
+const ACCESS_KEY = 'billard_access';
+const REFRESH_KEY = 'billard_refresh';
+
+/** Event fired when the session can no longer be refreshed (user must log in again) */
+export const AUTH_EXPIRED_EVENT = 'billard:auth-expired';
+
+export function setAuthTokens(access: string, refresh?: string): void {
+  localStorage.setItem(ACCESS_KEY, access);
+  if (refresh) localStorage.setItem(REFRESH_KEY, refresh);
+}
+
+export function clearAuthTokens(): void {
+  localStorage.removeItem(ACCESS_KEY);
+  localStorage.removeItem(REFRESH_KEY);
+}
+
+// Shared so that parallel 401s trigger a single refresh call
+let refreshPromise: Promise<boolean> | null = null;
+
+async function refreshAccessToken(): Promise<boolean> {
+  const refresh = localStorage.getItem(REFRESH_KEY);
+  if (!refresh) return false;
+
+  if (!refreshPromise) {
+    refreshPromise = fetch(`${API_URL}/auth/token/refresh/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh }),
+    })
+      .then(async res => {
+        if (!res.ok) return false;
+        const data = await res.json();
+        setAuthTokens(data.access, data.refresh);
+        return true;
+      })
+      .catch(() => false)
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+}
+
+function withAuthHeader(init: RequestInit): RequestInit {
+  const headers = new Headers(init.headers);
+  const access = localStorage.getItem(ACCESS_KEY);
+  if (access) headers.set('Authorization', `Bearer ${access}`);
+  return { ...init, headers };
+}
+
+/**
+ * Drop-in replacement for fetch() that sends the JWT access token,
+ * refreshes it once on 401 and retries the request.
+ */
+export async function authFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  let response = await fetch(input, withAuthHeader(init));
+
+  if (response.status === 401) {
+    if (await refreshAccessToken()) {
+      response = await fetch(input, withAuthHeader(init));
+    } else {
+      clearAuthTokens();
+      window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+    }
+  }
+  return response;
+}
+
 /**
  * Error response interface for consistent error handling
  */
@@ -37,7 +108,7 @@ export async function apiCall<T = any>(
       ...options.headers,
     };
 
-    const response = await fetch(url, {
+    const response = await authFetch(url, {
       ...options,
       headers,
     });
@@ -57,7 +128,8 @@ export async function apiCall<T = any>(
 
     return await response.json() as T;
   } catch (error) {
-    if (error instanceof ApiError) {
+    // ApiError is a type-only interface, so detect it structurally
+    if (error && typeof error === 'object' && 'status' in error && 'message' in error) {
       throw error;
     }
 
