@@ -15,10 +15,13 @@ services:
     restart: unless-stopped
     volumes:
       - sqlite_data:/app/data
+    # Values come from the .env file next to this file (see .env.example)
     environment:
-      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-docker-secret-key-change-in-production}
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY manquant - copiez .env.example en .env}
       - DEBUG=${DEBUG:-False}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
 
 volumes:
   sqlite_data:

@@ -4,18 +4,25 @@
 
 ## Quick Start
 
-1. **Build and run the Docker container:**
+1. **Create the configuration file (first time only):**
    ```bash
-   docker-compose down -v
-   docker-compose up -d --build
+   cp .env.example .env
+   python -c "import secrets;print(secrets.token_urlsafe(50))"   # paste it as DJANGO_SECRET_KEY in .env
    ```
+   Optionally set ADMIN_USERNAME / ADMIN_PASSWORD in .env (used only when the database is empty).
 
-2. **Access the application:**
+2. **Build and run the Docker container:**
+   ```bash
+   docker compose up -d --build
+   ```
+   This keeps your data. Do NOT add `-v` to `docker compose down`: it deletes the database.
+
+3. **Access the application:**
    Open your browser and go to: http://localhost
 
-3. **Login credentials:**
-   - Username: admin
-   - Password: admin$123
+4. **Login credentials:**
+   - Username: value of ADMIN_USERNAME (default: admin)
+   - Password: value of ADMIN_PASSWORD, or the generated one shown once in `docker logs billarde`
 
 ## Architecture
 
@@ -103,15 +110,14 @@ docker-compose restart
 ## Production Notes
 
 For production deployment:
-1. Change the Django SECRET_KEY in docker-compose.yml
+1. Set a unique DJANGO_SECRET_KEY in .env (never commit .env)
 2. Set DEBUG=False
 3. Use HTTPS with a proper SSL certificate
 4. Consider using PostgreSQL instead of SQLite for better performance
 5. Set up proper backup procedures
 
-## Default Credentials
+## Changing the admin password
 
-- **Admin User**: admin
-- **Admin Password**: admin$123
-
-⚠️ IMPORTANT: Change these credentials immediately after first login!
+```bash
+docker exec -it billarde python manage.py changepassword admin
+```
